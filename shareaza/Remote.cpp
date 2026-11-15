@@ -51,6 +51,11 @@
 #include "EDPacket.h"
 #include "GProfile.h"
 #include "ShareazaURL.h"
+#include "BTInfo.h"
+#include "Library.h"
+#include "LibraryFolders.h"
+#include "SharedFolder.h"
+#include "SharedFile.h"
 #include "Skin.h"
 
 #include "WndMain.h"
@@ -116,7 +121,8 @@ BOOL CRemote::OnRead()
 	
 	if ( m_sHandshake.IsEmpty() )
 	{
-		if ( GetInputLength() > 4096 || ! Settings.Remote.Enable )
+		if ( GetInputLength() > 4096 || ! Settings.Remote.Enable ||
+			( Settings.Remote.LocalOnly && ! IsLocalPeer() ) )
 		{
 			Close();
 			return FALSE;
@@ -154,6 +160,7 @@ BOOL CRemote::OnHeadersComplete()
 	m_sRedirect.Empty();
 	m_sHeader.Empty();
 	m_sResponse.Empty();
+	m_sContentType.Empty();
 	m_pResponse.Clear();
 	
 	if ( strPath == _T("/") )
@@ -176,12 +183,19 @@ BOOL CRemote::OnHeadersComplete()
 	else if ( ! m_sResponse.IsEmpty() )
 	{
 		CString strLength;
-		Prepare();
-		Output( _T("commonFooter") );
+		if ( m_sContentType.IsEmpty() )
+		{
+			// Template pages get the common footer; JSON replies are complete as they are
+			Prepare();
+			Output( _T("commonFooter") );
+		}
 		int nBytes = WideCharToMultiByte( CP_UTF8, 0, m_sResponse, m_sResponse.GetLength(), NULL, 0, NULL, NULL );
 		strLength.Format( _T("Content-Length: %i\r\n"), nBytes );
 		Write( _P("HTTP/1.1 200 OK\r\n") );
-		Write( _P("Content-Type: text/html; charset=UTF-8\r\n") );
+		if ( m_sContentType.IsEmpty() )
+			Write( _P("Content-Type: text/html; charset=UTF-8\r\n") );
+		else
+			Write( _T("Content-Type: ") + m_sContentType + _T("\r\n") + _T("Cache-Control: no-store\r\n") );
 		Write( strLength );
 		if ( ! m_sHeader.IsEmpty() ) Write( m_sHeader );
 		Write( _P("\r\n") );
@@ -449,6 +463,10 @@ void CRemote::PageSwitch(const CString& strPath)
 	else if ( strPath.CompareNoCase( _T("/remote/network") ) == 0 )
 	{
 		PageNetwork();
+	}
+	else if ( strPath.Left( 15 ).CompareNoCase( _T("/remote/api/v1/") ) == 0 )
+	{
+		PageApi( strPath.Mid( 15 ) );
 	}
 	else if ( strPath.Left( 15 ).CompareNoCase( _T("/remote/images/") ) == 0 )
 	{
@@ -1380,4 +1398,416 @@ void CRemote::PageImage(const CString& strPath)
 		m_pResponse.m_nLength += (DWORD)hFile.GetLength();
 		hFile.Close();
 	}
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// CRemote JSON API
+//
+// /remote/api/v1/<endpoint>?<parameters>, after the same login as the web pages
+// (a request without a valid session cookie is redirected to /remote/).
+// Every reply is a JSON object; failures are {"ok":false,"error":"..."}.
+//
+//   status                                   engine version, port, network state
+//   library/folders                          shared folder tree
+//     ?add=<path>[&shared=0|1]               add a library folder
+//     ?remove=<path>                         remove a top-level library folder
+//     ?share=<path>&value=0|1|inherit        share or unshare a folder
+//     ?rescan=1                              rescan every library folder
+//   library/files?folder=<path>              files directly inside a folder
+//     &file=<index>&share=0|1|inherit        share or unshare one file
+//   settings[?section=<s>]                   every setting (or one section)
+//     ?section=<s>&name=<n>&value=<v>        change one setting (not [Remote])
+//   torrent/open?path=<file.torrent>         start a torrent download
+
+namespace
+{
+	CString JsonString(const CString& str)
+	{
+		CString strOut;
+		strOut.Preallocate( str.GetLength() + 2 );
+		strOut += _T('"');
+		for ( int i = 0 ; i < str.GetLength() ; ++i )
+		{
+			const TCHAR c = str.GetAt( i );
+			switch ( c )
+			{
+			case _T('"'):  strOut += _T("\\\""); break;
+			case _T('\\'): strOut += _T("\\\\"); break;
+			case _T('\n'): strOut += _T("\\n"); break;
+			case _T('\r'): strOut += _T("\\r"); break;
+			case _T('\t'): strOut += _T("\\t"); break;
+			default:
+				if ( c < 0x20 )
+				{
+					CString strEscape;
+					strEscape.Format( _T("\\u%04x"), (unsigned)c );
+					strOut += strEscape;
+				}
+				else
+					strOut += c;
+			}
+		}
+		strOut += _T('"');
+		return strOut;
+	}
+
+	inline LPCTSTR JsonBool(bool bValue)
+	{
+		return bValue ? _T("true") : _T("false");
+	}
+
+	CString JsonNumber(QWORD nValue)
+	{
+		CString str;
+		str.Format( _T("%I64u"), nValue );
+		return str;
+	}
+
+	CString JsonTristate(TRISTATE nValue)
+	{
+		return ( nValue == TRI_TRUE ) ? _T("true") : ( nValue == TRI_FALSE ) ? _T("false") : _T("null");
+	}
+
+	// "1"/"true" -> TRI_TRUE, "0"/"false" -> TRI_FALSE, "inherit"/"" -> TRI_UNKNOWN
+	TRISTATE ParseTristate(const CString& str)
+	{
+		if ( str == _T("1") || str.CompareNoCase( _T("true") ) == 0 ) return TRI_TRUE;
+		if ( str == _T("0") || str.CompareNoCase( _T("false") ) == 0 ) return TRI_FALSE;
+		return TRI_UNKNOWN;
+	}
+
+	CString TrimFolderPath(CString strPath)
+	{
+		strPath.Trim();
+		if ( strPath.GetLength() > 3 )
+			strPath.TrimRight( _T("\\/") );
+		return strPath;
+	}
+
+	void FolderJson(CString& strOut, const CLibraryFolder* pFolder)
+	{
+
+		strOut += _T("{\"path\":") + JsonString( pFolder->m_sPath );
+		strOut += _T(",\"name\":") + JsonString( pFolder->m_sName );
+		strOut += _T(",\"shared\":");
+		strOut += JsonBool( pFolder->IsShared() != FALSE );
+		strOut += _T(",\"files\":") + JsonNumber( pFolder->m_nFiles );
+		strOut += _T(",\"bytes\":") + JsonNumber( pFolder->m_nVolume );
+		strOut += _T(",\"offline\":");
+		strOut += JsonBool( pFolder->IsOffline() != FALSE );
+		strOut += _T(",\"folders\":[");
+		bool bFirst = true;
+		for ( POSITION pos = pFolder->GetFolderIterator() ; pos ; )
+		{
+			if ( ! bFirst ) strOut += _T(',');
+			bFirst = false;
+			FolderJson( strOut, pFolder->GetNextFolder( pos ) );
+		}
+		strOut += _T("]}");
+	}
+
+	CString SettingJson(const CSettings::Item* pItem)
+	{
+		CString str = _T("{\"section\":") + JsonString( pItem->m_szSection );
+		str += _T(",\"name\":") + JsonString( pItem->m_szName );
+		if ( pItem->m_pBool )
+		{
+			str += _T(",\"type\":\"bool\",\"value\":");
+			str += JsonBool( *pItem->m_pBool );
+			str += _T(",\"default\":");
+			str += JsonBool( pItem->m_BoolDefault );
+		}
+		else if ( pItem->m_pDword )
+		{
+			// Raw values; a UI shows value / scale, in [min, max] with the suffix
+			str += _T(",\"type\":\"number\",\"value\":") + JsonNumber( *pItem->m_pDword );
+			str += _T(",\"default\":") + JsonNumber( pItem->m_DwordDefault );
+			str += _T(",\"scale\":") + JsonNumber( pItem->m_nScale );
+			str += _T(",\"min\":") + JsonNumber( pItem->m_nMin );
+			str += _T(",\"max\":") + JsonNumber( pItem->m_nMax );
+			str += _T(",\"suffix\":") + JsonString( pItem->m_szSuffix ? pItem->m_szSuffix : _T("") );
+		}
+		else if ( pItem->m_pFloat )
+		{
+			CString strValue;
+			strValue.Format( _T(",\"type\":\"float\",\"value\":%g,\"default\":%g"), *pItem->m_pFloat, pItem->m_FloatDefault );
+			str += strValue;
+		}
+		else if ( pItem->m_pString )
+		{
+			str += _T(",\"type\":\"string\",\"value\":") + JsonString( *pItem->m_pString );
+			str += _T(",\"default\":") + JsonString( pItem->m_StringDefault ? pItem->m_StringDefault : _T("") );
+		}
+		else if ( pItem->m_pSet )
+		{
+			str += _T(",\"type\":\"set\",\"value\":") + JsonString( CSettings::SaveSet( pItem->m_pSet ) );
+			str += _T(",\"default\":") + JsonString( pItem->m_StringDefault ? pItem->m_StringDefault : _T("") );
+		}
+		str += _T(",\"hidden\":");
+		str += JsonBool( pItem->m_bHidden );
+		str += _T('}');
+		return str;
+	}
+}
+
+BOOL CRemote::IsLocalPeer() const
+{
+	if ( IsIPv6Host() )
+		return IN6_IS_ADDR_LOOPBACK( &m_pHostIPv6.sin6_addr );
+	return ( m_pHost.sin_addr.S_un.S_un_b.s_b1 == 127 );
+}
+
+void CRemote::ApiReply(const CString& strJSON)
+{
+	m_sContentType = _T("application/json; charset=UTF-8");
+	m_sResponse = strJSON;
+}
+
+void CRemote::ApiError(LPCTSTR pszMessage)
+{
+	ApiReply( _T("{\"ok\":false,\"error\":") + JsonString( pszMessage ) + _T("}") );
+}
+
+void CRemote::PageApi(const CString& strEndpoint)
+{
+	if ( CheckCookie() ) return;
+
+	if ( strEndpoint.CompareNoCase( _T("status") ) == 0 )
+		ApiStatus();
+	else if ( strEndpoint.CompareNoCase( _T("library/folders") ) == 0 )
+		ApiLibraryFolders();
+	else if ( strEndpoint.CompareNoCase( _T("library/files") ) == 0 )
+		ApiLibraryFiles();
+	else if ( strEndpoint.CompareNoCase( _T("settings") ) == 0 )
+		ApiSettings();
+	else if ( strEndpoint.CompareNoCase( _T("torrent/open") ) == 0 )
+		ApiTorrentOpen();
+	else
+		ApiError( _T("unknown endpoint") );
+}
+
+void CRemote::ApiStatus()
+{
+	CString str = _T("{\"ok\":true,\"api\":1");
+	str += _T(",\"version\":") + JsonString( theApp.m_sVersionLong );
+	str += _T(",\"port\":") + JsonNumber( Settings.Connection.InPort );
+	str += _T(",\"connected\":");
+	str += JsonBool( Network.IsConnected() );
+	str += _T(",\"listening\":");
+	str += JsonBool( Network.IsListening() );
+	str += _T(",\"firewalled\":");
+	str += JsonBool( Network.IsFirewalled() != FALSE );
+	str += _T(",\"localOnly\":");
+	str += JsonBool( Settings.Remote.LocalOnly );
+	str += _T(",\"downloadsPath\":") + JsonString( Settings.Downloads.CompletePath );
+	str += _T(",\"incompletePath\":") + JsonString( Settings.Downloads.IncompletePath );
+	str += _T("}");
+	ApiReply( str );
+}
+
+void CRemote::ApiLibraryFolders()
+{
+	const CString strAdd = TrimFolderPath( GetKey( _T("add") ) );
+	const CString strRemove = TrimFolderPath( GetKey( _T("remove") ) );
+	const CString strShare = TrimFolderPath( GetKey( _T("share") ) );
+
+	if ( ! strAdd.IsEmpty() )
+	{
+		if ( ! CLibraryFolders::IsShareable( strAdd ) )
+			return ApiError( _T("this folder cannot be added (system or program folder)") );
+		if ( GetFileAttributes( strAdd ) == INVALID_FILE_ATTRIBUTES )
+			return ApiError( _T("folder not found") );
+		// AddFolder refuses a folder that is already in the library or inside one
+		const CString strShared = GetKey( _T("shared") );
+		CLibraryFolder* pFolder = strShared.IsEmpty()
+			? LibraryFolders.AddFolder( strAdd )
+			: LibraryFolders.AddFolder( strAdd, ParseTristate( strShared ) == TRI_TRUE );
+		if ( ! pFolder )
+			return ApiError( _T("folder is already in the library") );
+	}
+	else if ( ! strRemove.IsEmpty() )
+	{
+		CQuickLock oLock( Library.m_pSection );
+		CLibraryFolder* pFolder = NULL;
+		for ( POSITION pos = LibraryFolders.GetFolderIterator() ; pos ; )
+		{
+			CLibraryFolder* pTest = LibraryFolders.GetNextFolder( pos );
+			if ( pTest->m_sPath.CompareNoCase( strRemove ) == 0 )
+				pFolder = pTest;
+		}
+		if ( ! pFolder )
+			return ApiError( _T("not a top-level library folder") );
+		LibraryFolders.RemoveFolder( pFolder );
+	}
+	else if ( ! strShare.IsEmpty() )
+	{
+		CQuickLock oLock( Library.m_pSection );
+		CLibraryFolder* pFolder = LibraryFolders.GetFolder( strShare );
+		if ( ! pFolder )
+			return ApiError( _T("folder is not in the library") );
+		pFolder->SetShared( ParseTristate( GetKey( _T("value") ) ) );
+		Library.Update();
+	}
+	else if ( ! GetKey( _T("rescan") ).IsEmpty() )
+	{
+		Library.Update( true );
+	}
+
+	CQuickLock oLock( Library.m_pSection );
+	CString str = _T("{\"ok\":true,\"folders\":[");
+	bool bFirst = true;
+	for ( POSITION pos = LibraryFolders.GetFolderIterator() ; pos ; )
+	{
+		if ( ! bFirst ) str += _T(',');
+		bFirst = false;
+		FolderJson( str, LibraryFolders.GetNextFolder( pos ) );
+	}
+	str += _T("]}");
+	ApiReply( str );
+}
+
+void CRemote::ApiLibraryFiles()
+{
+	CQuickLock oLock( Library.m_pSection );
+
+	const CString strFolder = TrimFolderPath( GetKey( _T("folder") ) );
+	const CLibraryFolder* pFolder = LibraryFolders.GetFolder( strFolder );
+	if ( ! pFolder )
+		return ApiError( _T("folder is not in the library") );
+
+	const CString strFile = GetKey( _T("file") );
+	if ( ! strFile.IsEmpty() )
+	{
+		DWORD nIndex = 0;
+		_stscanf( strFile, _T("%lu"), &nIndex );
+		CLibraryFile* pFile = Library.LookupFile( nIndex );
+		if ( ! pFile || pFile->GetFolderPtr() != pFolder )
+			return ApiError( _T("file is not in that folder") );
+		const TRISTATE nShare = ParseTristate( GetKey( _T("share") ) );
+		// As the library window does: a value equal to the folder's clears the
+		// file's own override, so it follows the folder again
+		pFile->SetShared( nShare == TRI_UNKNOWN ? ( pFolder->IsShared() != FALSE ) : ( nShare == TRI_TRUE ), false );
+		Library.Update();
+	}
+
+	CString str = _T("{\"ok\":true,\"folder\":") + JsonString( pFolder->m_sPath ) + _T(",\"files\":[");
+	bool bFirst = true;
+	for ( POSITION pos = pFolder->GetFileIterator() ; pos ; )
+	{
+		const CLibraryFile* pFile = pFolder->GetNextFile( pos );
+		if ( ! bFirst ) str += _T(',');
+		bFirst = false;
+		str += _T("{\"index\":") + JsonNumber( pFile->m_nIndex );
+		str += _T(",\"name\":") + JsonString( pFile->m_sName );
+		str += _T(",\"size\":") + JsonNumber( pFile->m_nSize == SIZE_UNKNOWN ? 0 : pFile->m_nSize );
+		str += _T(",\"shared\":");
+		str += JsonBool( pFile->IsShared() );
+		str += _T(",\"override\":");
+		str += JsonBool( pFile->IsSharedOverride() != FALSE );
+		str += _T(",\"hits\":") + JsonNumber( pFile->m_nHitsTotal );
+		str += _T(",\"uploads\":") + JsonNumber( pFile->m_nUploadsTotal );
+		str += _T(",\"urn\":") + JsonString( pFile->GetURN() );
+		str += _T("}");
+	}
+	str += _T("]}");
+	ApiReply( str );
+}
+
+void CRemote::ApiSettings()
+{
+	const CString strSection = GetKey( _T("section") );
+	const CString strName = GetKey( _T("name") );
+
+	if ( ! strName.IsEmpty() )
+	{
+		// The remote's own credentials are not editable from the remote
+		if ( strSection.CompareNoCase( _T("Remote") ) == 0 )
+			return ApiError( _T("the Remote section is read-only here") );
+
+		CSettings::Item* pFound = NULL;
+		for ( POSITION pos = Settings.GetHeadPosition() ; pos ; )
+		{
+			CSettings::Item* pItem = Settings.GetNext( pos );
+			if ( strSection.CompareNoCase( pItem->m_szSection ) == 0 &&
+				 strName.CompareNoCase( pItem->m_szName ) == 0 )
+			{
+				pFound = pItem;
+				break;
+			}
+		}
+		if ( ! pFound )
+			return ApiError( _T("no such setting") );
+
+		const CString strValue = GetKey( _T("value") );
+		if ( pFound->m_pBool )
+		{
+			const TRISTATE nValue = ParseTristate( strValue );
+			if ( nValue == TRI_UNKNOWN )
+				return ApiError( _T("expected 0 or 1") );
+			*pFound->m_pBool = ( nValue == TRI_TRUE );
+		}
+		else if ( pFound->m_pDword )
+		{
+			DWORD nValue = 0;
+			if ( _stscanf( strValue, _T("%lu"), &nValue ) != 1 )
+				return ApiError( _T("expected a number") );
+			*pFound->m_pDword = nValue;
+		}
+		else if ( pFound->m_pFloat )
+		{
+			double fValue = 0;
+			if ( _stscanf( strValue, _T("%lf"), &fValue ) != 1 )
+				return ApiError( _T("expected a number") );
+			*pFound->m_pFloat = fValue;
+		}
+		else if ( pFound->m_pString )
+			*pFound->m_pString = strValue;
+		else if ( pFound->m_pSet )
+			CSettings::LoadSet( pFound->m_pSet, strValue );
+
+		pFound->Normalize();
+		pFound->Save();
+		return ApiReply( _T("{\"ok\":true,\"setting\":") + SettingJson( pFound ) + _T("}") );
+	}
+
+	CString str = _T("{\"ok\":true,\"settings\":[");
+	bool bFirst = true;
+	for ( POSITION pos = Settings.GetHeadPosition() ; pos ; )
+	{
+		const CSettings::Item* pItem = Settings.GetNext( pos );
+		if ( ! strSection.IsEmpty() && strSection.CompareNoCase( pItem->m_szSection ) != 0 )
+			continue;
+		if ( ! bFirst ) str += _T(',');
+		bFirst = false;
+		str += SettingJson( pItem );
+	}
+	str += _T("]}");
+	ApiReply( str );
+}
+
+void CRemote::ApiTorrentOpen()
+{
+	const CString strPath = GetKey( _T("path") );
+	if ( strPath.IsEmpty() )
+		return ApiError( _T("missing path") );
+
+	CAutoPtr< CBTInfo > pInfo( new CBTInfo() );
+	if ( ! pInfo || ! pInfo->LoadTorrentFile( strPath ) )
+		return ApiError( _T("not a valid .torrent file") );
+
+	// The desktop path opens CTorrentSeedDlg here; a remote request must not open
+	// a modal dialog, so the download is added directly, as that dialog's
+	// Download button does.
+	CShareazaURL oURL( pInfo.Detach() );
+
+	CSingleLock pTransfersLock( &Transfers.m_pSection, TRUE );
+	CDownload* pDownload = Downloads.Add( oURL );
+	if ( ! pDownload )
+		return ApiError( _T("the download could not be added") );
+	pDownload->OpenDownload();
+
+	CString strId;
+	strId.Format( _T("%p"), pDownload );
+	ApiReply( _T("{\"ok\":true,\"id\":") + JsonString( strId ) +
+		_T(",\"name\":") + JsonString( pDownload->GetDisplayName() ) + _T("}") );
 }

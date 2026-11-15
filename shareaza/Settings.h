@@ -598,6 +598,7 @@ public:
 		bool		Enable;
 		CString		Username;
 		CString		Password;
+		bool		LocalOnly;					// Accept remote access only from this computer (loopback)
 	} Remote;
 
 	struct sIRC

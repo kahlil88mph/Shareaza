@@ -586,6 +586,7 @@ void CSettings::Load()
 	Add( _T("Remote"), _T("Enable"), &Remote.Enable, false );
 	Add( _T("Remote"), _T("Password"), &Remote.Password );
 	Add( _T("Remote"), _T("Username"), &Remote.Username );
+	Add( _T("Remote"), _T("LocalOnly"), &Remote.LocalOnly, true );
 
 	Add( _T("Experimental"), _T("EnableDIPPSupport"), &Experimental.EnableDIPPSupport, false );
 	Add( _T("Experimental"), _T("TestBTPartials"), &Experimental.TestBTPartials, false );

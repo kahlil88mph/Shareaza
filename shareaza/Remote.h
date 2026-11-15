@@ -40,6 +40,7 @@ protected:
 	CString				m_sRedirect;
 	CString				m_sHeader;
 	CString				m_sResponse;
+	CString				m_sContentType;		// Set by the JSON API; empty for template pages
 	CBuffer				m_pResponse;
 	CStringIMap			m_pKeys;
 	static CList<int>	m_pCookies;
@@ -72,6 +73,18 @@ protected:
 	void	PageNetwork();
 	void	PageBanner(const CString& strPath);
 	void	PageImage(const CString& strPath);
+
+// JSON API (/remote/api/v1/...), for programs rather than browsers
+protected:
+	BOOL	IsLocalPeer() const;
+	void	PageApi(const CString& strEndpoint);
+	void	ApiReply(const CString& strJSON);
+	void	ApiError(LPCTSTR pszMessage);
+	void	ApiStatus();
+	void	ApiLibraryFolders();
+	void	ApiLibraryFiles();
+	void	ApiSettings();
+	void	ApiTorrentOpen();
 
 // Utilities
 protected:
