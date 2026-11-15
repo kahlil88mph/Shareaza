@@ -23,7 +23,9 @@
 #include "Shareaza.h"
 #include "Settings.h"
 #include "Schema.h"
+#ifdef _WIN32
 #include "Skin.h"
+#endif
 #include "Registry.h"
 
 #ifdef _DEBUG
@@ -711,6 +713,7 @@ void CSettings::Load()
 	BitTorrent.EnableToday		= BitTorrent.EnableAlways;
 	DC.EnableToday				= DC.EnableAlways;
 
+#ifdef _WIN32	// copies the Windows installer into the downloads folder
 	if ( General.Upgrade )
 	{
 		General.Upgrade = false;
@@ -736,8 +739,14 @@ void CSettings::Load()
 		}
 	}
 
+#endif
+
 	// Set interface
+#ifdef _WIN32
 	Interface.LowResMode		= ! ( GetSystemMetrics( SM_CYSCREEN ) > 600 );
+#else
+	Interface.LowResMode		= false;	// no local interface
+#endif
 	if ( Live.FirstRun )
 	{
 		Search.AdvancedPanel = ! Interface.LowResMode;
@@ -1351,6 +1360,7 @@ void CSettings::OnChangeConnectionSpeed()
 //////////////////////////////////////////////////////////////////////
 // CSettings window position persistance
 
+#ifdef _WIN32
 BOOL CSettings::LoadWindow(LPCTSTR pszName, CWnd* pWindow)
 {
 	CString strEntry;
@@ -1533,6 +1543,18 @@ void CSettings::SetStartup(BOOL bStartup)
 	RegCloseKey( hKey );
 }
 
+#else
+// Linux: no autostart entry yet (would be an XDG autostart .desktop file).
+BOOL CSettings::CheckStartup()
+{
+	return FALSE;
+}
+
+void CSettings::SetStartup(BOOL /*bStartup*/)
+{
+}
+#endif // _WIN32
+
 void CSettings::ClearSearches()
 {
 	for ( int i = 0; ; i++ )
@@ -1707,6 +1729,7 @@ DWORD CSettings::GetOutgoingBandwidth() const
 	return ( min( ( Settings.Connection.OutSpeed / 8 ), ( Settings.Bandwidth.Uploads / Kilo ) ) );
 }
 
+#ifdef _WIN32
 bool CSettings::GetValue(LPCTSTR pszPath, VARIANT* value)
 {
 	if ( value->vt != VT_EMPTY ) return false;
@@ -1746,6 +1769,8 @@ bool CSettings::GetValue(LPCTSTR pszPath, VARIANT* value)
 
 //////////////////////////////////////////////////////////////////////
 // CSettings::Item construction and operations
+
+#endif // _WIN32
 
 void CSettings::Item::Load()
 {
@@ -1882,6 +1907,7 @@ void CSettings::Item::SetDefault()
 		LoadSet( m_pSet, m_StringDefault );
 }
 
+#ifdef _WIN32
 template<>
 void CSettings::Item::SetRange< CSpinButtonCtrl >(CSpinButtonCtrl& pCtrl)
 {
@@ -1907,3 +1933,4 @@ void CSettings::Item::SetRange< CSliderCtrl >(CSliderCtrl& pCtrl)
 		pCtrl.SetRange( m_nMin, m_nMax );
 	}
 }
+#endif // _WIN32

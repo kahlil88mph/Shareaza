@@ -21,7 +21,12 @@
 
 #pragma once
 
-#include "Resource.h"
+#ifndef _WIN32
+// Linux: headless application object with the engine-facing members only.
+#include "../linux/engine/ShareazaHost.h"
+#else
+
+#include "resource.h"
 #include "ComObject.h"
 
 class CBuffer;
@@ -391,6 +396,10 @@ __int32 GetRandomNum<__int32>(const __int32& min, const __int32& max);
 template <>
 __int64 GetRandomNum<__int64>(const __int64& min, const __int64& max);
 
+#endif // _WIN32
+
+// Shared by the Windows and Linux builds: application messages and product constants.
+
 #define WM_WINSOCK			(WM_APP+101)	// Winsock messages proxy to Network object ( used by WSAAsyncGetHostByName() function )
 #define WM_VERSIONCHECK		(WM_APP+102)	// Version check ( WAPARM: VERSION_CHECK nCode, LPARAM: unused )
 #define WM_OPENCHAT			(WM_APP+103)	// Open chat window ( WAPARM: CChatSession* pChat, LPARAM: unused )
@@ -485,6 +494,8 @@ __int64 GetRandomNum<__int64>(const __int64& min, const __int64& max);
 // -				ORIGINAL_SITE_T ?id=addon&Version=..	add-ons, from Settings
 // -				URI_UPDATE							CVersionChecker
 
+#ifdef _WIN32
+
 
 // Drag-n-drop stuff
 
@@ -497,3 +508,5 @@ extern const LPCTSTR RT_BMP;
 extern const LPCTSTR RT_JPEG;
 extern const LPCTSTR RT_PNG;
 extern const LPCTSTR RT_GZIP;
+
+#endif // _WIN32

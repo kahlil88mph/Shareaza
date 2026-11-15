@@ -35,7 +35,7 @@
 #include "XML.h"
 #include "Schema.h"
 #include "SchemaCache.h"
-#include "ID3.h"
+#include "ID3.H"
 
 #ifdef _DEBUG
 #undef THIS_FILE

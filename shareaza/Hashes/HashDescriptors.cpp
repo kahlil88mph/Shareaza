@@ -22,7 +22,7 @@
 //! \file       Hashes/HashDescriptors.cpp
 //! \brief      Defines urn prefixes for all hash types.
 
-#include "..\StdAfx.h"
+#include "../StdAfx.h"
 
 // If we are compiling in debug mode, replace the text "THIS_FILE" in the code with the name of this file
 #ifdef _DEBUG

@@ -150,6 +150,8 @@ TCHAR CLowerCaseTable::operator()(TCHAR cLookup) const
 		else
 			return cLookup;
 	}
+	else if ( (DWORD)cLookup >= _countof( cTable ) )
+		return cLookup;	// outside the BMP (wchar_t is 32-bit on Linux)
 	else
 		return cTable[ cLookup ];
 }

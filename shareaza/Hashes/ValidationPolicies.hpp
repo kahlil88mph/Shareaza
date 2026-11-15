@@ -101,7 +101,7 @@ namespace Hashes
 			template<template<typename> class OVP, typename OCP>
 			BasicValidation(const OVP< OCP >& rhs)
 				: CheckingPolicy( static_cast< const OCP& >( rhs ) )
-				, m_valid( rhs.isValid() && check() )
+				, m_valid( rhs.isValid() && this->check() )
 			{}
 
 			template<template<typename> class OVP, typename OCP>
@@ -109,12 +109,12 @@ namespace Hashes
 			{
 				static_cast< CheckingPolicy& >( *this )
 						= static_cast< const OCP& >( rhs );
-				m_valid = rhs.isValid() && check();
+				m_valid = rhs.isValid() && this->check();
 				return *this;
 			}
 
 			void clear() { CheckingPolicy::clear(); m_valid = false; }
-			bool validate() { return m_valid = check(); }
+			bool validate() { return m_valid = this->check(); }
 
 			bool isValid() const { return m_valid; }
 			operator SafeBool() const

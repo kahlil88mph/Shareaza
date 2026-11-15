@@ -23,7 +23,7 @@
 #include "Shareaza.h"
 #include "Settings.h"
 #include "GProfile.h"
-#include "Hostbrowser.h"
+#include "HostBrowser.h"
 #include "SchemaCache.h"
 #include "Schema.h"
 #include "Skin.h"

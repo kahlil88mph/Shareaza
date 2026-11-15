@@ -215,7 +215,7 @@ BOOL CED2K::FinishBlockTest(uint32 nBlock)
 	m_pSegment.Finish();
 	m_pSegment.GetHash( (uchar*)&pMD4[ 0 ] );
 	
-    return std::equal( &pMD4[ 0 ], &pMD4[ 4 ], &m_pList[ nBlock ][ 0 ] );
+    return std::equal( pMD4.data, pMD4.data + 4, m_pList[ nBlock ].data );
 }
 
 //////////////////////////////////////////////////////////////////////

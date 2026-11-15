@@ -29,8 +29,10 @@
 #include "Packet.h"
 #include "ZLibWarp.h"
 #include "Buffer.h"
+#ifdef _WIN32
 #include "WndMain.h"
 #include "WndPacket.h"
+#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE

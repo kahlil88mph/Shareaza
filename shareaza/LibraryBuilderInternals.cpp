@@ -33,7 +33,7 @@
 #include "Buffer.h"
 #include "Schema.h"
 #include "XML.h"
-#include "ID3.h"
+#include "ID3.H"
 #include "CollectionFile.h"
 #include "BTInfo.h"
 

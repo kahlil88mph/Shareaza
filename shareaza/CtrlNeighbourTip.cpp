@@ -19,7 +19,7 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include "Stdafx.h"
+#include "StdAfx.h"
 #include "Shareaza.h"
 #include "Settings.h"
 #include "CoolInterface.h"

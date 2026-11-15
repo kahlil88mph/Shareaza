@@ -52,7 +52,9 @@ auto_array< BYTE > CZLib::Compress(LPCVOID pInput, DWORD nInput, DWORD* pnOutput
 	}
 
 	// Compress the data at pInput into pBuffer, putting how many bytes it wrote under pnOutput
-	int nRes = compress2( pBuffer.get(), pnOutput, (const BYTE *)pInput, nInput, Settings.Connection.ZLibCompressionLevel );
+	uLongf nOutput = *pnOutput;	// uLongf is 64-bit on LP64 systems, DWORD is not
+	int nRes = compress2( pBuffer.get(), &nOutput, (const BYTE *)pInput, nInput, Settings.Connection.ZLibCompressionLevel );
+	*pnOutput = (DWORD)nOutput;
 	if ( nRes != Z_OK )
 	{
 		// The compress function reported error
@@ -83,7 +85,9 @@ BYTE* CZLib::Compress2(LPCVOID pInput, DWORD nInput, DWORD* pnOutput, DWORD nSug
 	}
 
 	// Compress the data at pInput into pBuffer, putting how many bytes it wrote under pnOutput
-	int nRes = compress2( pBuffer, pnOutput, (const BYTE *)pInput, nInput, Settings.Connection.ZLibCompressionLevel );
+	uLongf nOutput = *pnOutput;	// uLongf is 64-bit on LP64 systems, DWORD is not
+	int nRes = compress2( pBuffer, &nOutput, (const BYTE *)pInput, nInput, Settings.Connection.ZLibCompressionLevel );
+	*pnOutput = (DWORD)nOutput;
 	if ( nRes != Z_OK )
 	{
 		// The compress function reported error
@@ -112,7 +116,9 @@ auto_array< BYTE > CZLib::Decompress(LPCVOID pInput, DWORD nInput, DWORD* pnOutp
 		}
 
 		// Uncompress the data from pInput into pBuffer, writing how big it is now in pnOutput
-		int nRes = uncompress( pBuffer.get(), pnOutput, (const BYTE *)pInput, nInput );
+		uLongf nOutput = *pnOutput;	// uLongf is 64-bit on LP64 systems, DWORD is not
+		int nRes = uncompress( pBuffer.get(), &nOutput, (const BYTE *)pInput, nInput );
+		*pnOutput = (DWORD)nOutput;
 		if ( Z_OK == nRes )
 			return pBuffer;
 
@@ -145,7 +151,9 @@ BYTE* CZLib::Decompress2(LPCVOID pInput, DWORD nInput, DWORD* pnOutput)
 		pBuffer = pNewBuffer;
 
 		// Uncompress the data from pInput into pBuffer, writing how big it is now in pnOutput
-		int nRes = uncompress( pBuffer, pnOutput, (const BYTE *)pInput, nInput );
+		uLongf nOutput = *pnOutput;	// uLongf is 64-bit on LP64 systems, DWORD is not
+		int nRes = uncompress( pBuffer, &nOutput, (const BYTE *)pInput, nInput );
+		*pnOutput = (DWORD)nOutput;
 		if ( Z_OK == nRes )
 			return pBuffer;
 

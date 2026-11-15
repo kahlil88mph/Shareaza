@@ -833,10 +833,12 @@ public:
 		}
 	}
 
+#ifdef _WIN32	// window and list layout: Windows interface only
 	BOOL	LoadWindow(LPCTSTR pszName, CWnd* pWindow);
 	void	SaveWindow(LPCTSTR pszName, CWnd* pWindow);
 	BOOL	LoadList(LPCTSTR pszName, CListCtrl* pCtrl, int nSort = 0);
 	void	SaveList(LPCTSTR pszName, CListCtrl* pCtrl);
+#endif
 
 	const CString	SmartSpeed(QWORD nVolume, int nVolumeUnits = Bytes, bool bTruncate = false) const;	// Convert speeds into formatted strings
 	const CString	SmartVolume(QWORD nVolume, int nVolumeUnits = Bytes, bool bTruncate = false) const;	// Convert sizes into formatted strings
@@ -846,7 +848,9 @@ public:
 	void	SetStartup(BOOL bStartup);
 	void	ClearSearches();
 
+#ifdef _WIN32	// COM automation
 	bool	GetValue(LPCTSTR pszPath, VARIANT* value);
+#endif
 
 	void	OnChangeConnectionSpeed();
 

@@ -33,7 +33,7 @@
 #include "GProfile.h"
 #include "Neighbours.h"
 #include "Network.h"
-#include "TRansfers.h"
+#include "Transfers.h"
 #include "ShareazaURL.h"
 
 #ifdef _DEBUG

@@ -27,8 +27,8 @@
 
 // MiniUPnPc library
 // Copyright (c) 2005-2025 Thomas Bernard
-#include "..\MiniUPnPc\miniupnpc\include\miniupnpc.h"
-#include "..\MiniUPnPc\miniupnpc\include\upnpcommands.h"
+#include "../MiniUPnPc/miniupnpc/include/miniupnpc.h"
+#include "../MiniUPnPc/miniupnpc/include/upnpcommands.h"
 #pragma comment( lib, "miniupnpc" )
 
 #ifdef _DEBUG

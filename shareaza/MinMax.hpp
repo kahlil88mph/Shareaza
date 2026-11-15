@@ -24,6 +24,11 @@
 
 #pragma once
 
+#include <boost/mpl/apply_wrap.hpp>
+#include <boost/mpl/arg.hpp>
+#include <boost/mpl/if.hpp>
+#include <boost/type_traits.hpp>
+
 #undef min
 #undef max
 
@@ -201,7 +206,7 @@ typename min_max_detail
 	::MinMaxResultRef< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(T& lhs, U& rhs)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResultRef< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( rhs < lhs )
 		return Result( rhs );
@@ -214,7 +219,7 @@ typename min_max_detail
 	::MinMaxResultRef< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(T& lhs, U& rhs, const Pred& f)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResultRef< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( f( rhs, lhs ) )
 		return Result( rhs );
@@ -227,7 +232,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(const T& lhs, U& rhs)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( rhs < lhs )
 		return Result( rhs );
@@ -240,7 +245,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(const T& lhs, U& rhs, const Pred& f)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( f( rhs, lhs ) )
 		return Result( rhs );
@@ -253,7 +258,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(T& lhs, const U& rhs)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( rhs < lhs )
 		return Result( rhs );
@@ -266,7 +271,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(T& lhs, const U& rhs, const Pred& f)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( f( rhs, lhs ) )
 		return Result( rhs );
@@ -279,7 +284,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(const T& lhs, const U& rhs)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( rhs < lhs )
 		return Result( rhs );
@@ -292,7 +297,7 @@ typename min_max_detail
 	::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type
 inline min(const T& lhs, const U& rhs, const Pred& f)
 {
-	typedef min_max_detail
+	typedef typename min_max_detail
 		::MinMaxResult< T, U, SHAREAZA_ADVANCED_MIN_TEMPLATE >::type Result;
 	if ( f( rhs, lhs ) )
 		return Result( rhs );
@@ -304,7 +309,7 @@ template<typename T, typename U>
 typename min_max_detail::MinMaxResultRef< T, U >::type
 inline max(T& lhs, U& rhs)
 {
-	typedef min_max_detail::MinMaxResultRef< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResultRef< T, U >::type Result;
 	if ( lhs < rhs )
 		return Result( rhs );
 	else
@@ -315,7 +320,7 @@ template<typename T, typename U, typename Pred>
 typename min_max_detail::MinMaxResultRef< T, U >::type
 inline max(T& lhs, U& rhs, const Pred& f)
 {
-	typedef min_max_detail::MinMaxResultRef< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResultRef< T, U >::type Result;
 	if ( f( lhs, rhs ) )
 		return Result( rhs );
 	else
@@ -326,7 +331,7 @@ template<typename T, typename U>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(const T& lhs, U& rhs)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( lhs < rhs )
 		return Result( rhs );
 	else
@@ -337,7 +342,7 @@ template<typename T, typename U, typename Pred>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(const T& lhs, U& rhs, const Pred& f)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( f( lhs, rhs ) )
 		return Result( rhs );
 	else
@@ -348,7 +353,7 @@ template<typename T, typename U>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(T& lhs, const U& rhs)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( lhs < rhs )
 		return Result( rhs );
 	else
@@ -359,7 +364,7 @@ template<typename T, typename U, typename Pred>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(T& lhs, const U& rhs, const Pred& f)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( f( lhs, rhs ) )
 		return Result( rhs );
 	else
@@ -370,7 +375,7 @@ template<typename T, typename U>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(const T& lhs, const U& rhs)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( lhs < rhs )
 		return Result( rhs );
 	else
@@ -381,7 +386,7 @@ template<typename T, typename U, typename Pred>
 typename min_max_detail::MinMaxResult< T, U >::type
 inline max(const T& lhs, const U& rhs, const Pred& f)
 {
-	typedef min_max_detail::MinMaxResult< T, U >::type Result;
+	typedef typename min_max_detail::MinMaxResult< T, U >::type Result;
 	if ( f( lhs, rhs ) )
 		return Result( rhs );
 	else

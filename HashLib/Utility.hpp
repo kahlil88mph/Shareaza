@@ -39,7 +39,11 @@ typedef char int8;
 //! \brief platform independent signed 16 bit integer type.
 typedef short int16;
 //! \brief platform independent signed 32 bit integer type.
+#ifdef _WIN32
 typedef long int32;
+#else
+typedef int int32;	// long is 64-bit on Linux (LP64)
+#endif
 //! \brief platform independent signed 64 bit integer type.
 typedef __int64 int64;
 
@@ -48,7 +52,11 @@ typedef unsigned char uint8;
 //! \brief platform independent unsigned 16 bit integer type.
 typedef unsigned short uint16;
 //! \brief platform independent unsigned 32 bit integer type.
+#ifdef _WIN32
 typedef unsigned long uint32;
+#else
+typedef unsigned int uint32;	// long is 64-bit on Linux (LP64)
+#endif
 //! \brief platform independent unsigned 64 bit integer type.
 typedef unsigned __int64 uint64;
 
@@ -314,7 +322,7 @@ inline void for_each_if(InputIterator first, InputIterator last,
 	for ( ; first != last; ++first )
 	{
 		if ( pred( *first ) )
-			f( *first )
+			f( *first );
 	}
 }
 

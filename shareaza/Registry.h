@@ -66,3 +66,10 @@ struct CRegistry
 		return SetString( pszSection, pszName, buf, pszSubKey );
 	}
 };
+
+#ifndef _WIN32
+// Linux (linux/engine/Registry.cpp): deletions under REGISTRY_KEY only.
+#define HKEY_CURRENT_USER ((HKEY)(ULONG_PTR)0x80000001)
+LONG RegDeleteKey(HKEY hKey, LPCTSTR pszSubKey);
+LONG SHDeleteValue(HKEY hKey, LPCTSTR pszSubKey, LPCTSTR pszValue);
+#endif

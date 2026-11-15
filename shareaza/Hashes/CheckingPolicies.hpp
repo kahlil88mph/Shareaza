@@ -121,7 +121,7 @@ namespace Hashes
 				}
 			};
 		public:
-			bool check() const { return CheckHelper< wordCount >()( begin() ); }
+			bool check() const { return CheckHelper< wordCount >()( this->begin() ); }
 		};
 
 		//! \brief A model of \ref hashcheckingpoliciespage "Checking Policy"
@@ -225,8 +225,10 @@ namespace Hashes
 			//! \brief Add an entry to the blacklist.
 			//!
 			//! If no argument is given, the current value of this hash is used.
-			void addBlacklisted(const AlignedStorage&
-					storage = alignedStorage())
+			// No default argument: it would call a member function, which MSVC
+			// accepts but standard C++ does not.
+			void addBlacklisted() { addBlacklisted( this->alignedStorage() ); }
+			void addBlacklisted(const AlignedStorage& storage)
 			{
 				// we don't want duplicates
 				if ( !std::binary_search( m_blacklist.begin(),
@@ -239,8 +241,10 @@ namespace Hashes
 			//! \brief Remove an entry from the blacklist.
 			//!
 			//! If no argument is given, the current value of this hash is used.
-			void removeBlackListed(const AlignedStorage&
-					storage = alignedStorage())
+			// No default argument: it would call a member function, which MSVC
+			// accepts but standard C++ does not.
+			void removeBlackListed() { removeBlackListed( this->alignedStorage() ); }
+			void removeBlackListed(const AlignedStorage& storage)
 			{
 				if ( std::binary_search( m_blacklist.begin(),
 						m_blacklist.end(), storage() ) )

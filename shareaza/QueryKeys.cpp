@@ -20,7 +20,7 @@
 //
 
 #include "StdAfx.h"
-#include "shareaza.h"
+#include "Shareaza.h"
 #include "QueryKeys.h"
 
 #ifdef _DEBUG

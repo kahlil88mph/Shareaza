@@ -22,7 +22,7 @@
 //! \file       Hashes/HashStringConversion.cpp
 //! \brief      Defines functions for conversion between hashes and strings.
 
-#include "..\StdAfx.h"
+#include "../StdAfx.h"
 
 // If we are compiling in debug mode, replace the text "THIS_FILE" in the code with the name of this file
 #ifdef _DEBUG

@@ -142,9 +142,15 @@ class NoThrowNew
 public:
 	NoThrowNew() throw()
 	{
+#ifdef _WIN32
 		std::set_new_handler( &NoThrowNew::OutOfMemoryHandlerStd );
 		_set_new_handler( &NoThrowNew::OutOfMemoryHandler );
 		AfxSetNewHandler( &NoThrowNew::OutOfMemoryHandlerAfx );
+#else
+		// Linux: no handler. glibc has no _set_new_handler, and an empty
+		// std::new_handler makes operator new retry for ever, so a failed
+		// allocation throws std::bad_alloc instead of returning NULL.
+#endif
 	}
 
 private:
