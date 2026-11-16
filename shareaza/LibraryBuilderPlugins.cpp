@@ -23,7 +23,9 @@
 #include "Shareaza.h"
 #include "LibraryBuilder.h"
 #include "LibraryBuilderPlugins.h"
+#ifdef _WIN32
 #include "Plugins.h"
+#endif // _WIN32
 #include "XML.h"
 #include "XMLCOM.h"
 
@@ -36,6 +38,7 @@ static char THIS_FILE[]=__FILE__;
 //////////////////////////////////////////////////////////////////////
 // CLibraryBuilderPlugins construction
 
+#ifdef _WIN32	// COM plugins
 HRESULT CLibraryBuilderPlugins::SafeProcess(ILibraryBuilderPlugin* pPlugin, BSTR szPath, ISXMLElement* pElement)
 {
 	__try
@@ -47,10 +50,12 @@ HRESULT CLibraryBuilderPlugins::SafeProcess(ILibraryBuilderPlugin* pPlugin, BSTR
 		return RPC_E_SERVERFAULT;
 	}
 }
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CLibraryBuilderPlugins extract
 
+#ifdef _WIN32	// COM plugins
 bool CLibraryBuilderPlugins::ExtractPluginMetadata(DWORD nIndex, const CString& strPath)
 {
 	LPCTSTR szType = PathFindExtension( strPath );
@@ -99,3 +104,9 @@ bool CLibraryBuilderPlugins::ExtractPluginMetadata(DWORD nIndex, const CString& 
 
 	return false;
 }
+#else
+bool CLibraryBuilderPlugins::ExtractPluginMetadata(DWORD /*nIndex*/, const CString& /*strPath*/)
+{
+	return false;	// Linux: no metadata plugins (the built-in extractors still run)
+}
+#endif // _WIN32

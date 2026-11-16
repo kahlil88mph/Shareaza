@@ -40,8 +40,12 @@
 #include "Network.h"
 #include "UploadTransfer.h"
 #include "Uploads.h"
+#ifdef _WIN32
 #include "WndChat.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
 
 #ifdef _DEBUG
 #undef THIS_FILE

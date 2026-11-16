@@ -44,13 +44,17 @@
 #include "ThumbCache.h"
 
 #include "ChatCore.h"
+#ifdef _WIN32
 #include "WndBrowseHost.h"
+#endif // _WIN32
 #include "VendorCache.h"
 #include "QueryHit.h"
 #include "Security.h"
 #include "UploadQueues.h"
 #include "Schema.h"
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
 #include "XML.h"
 
 #ifdef _DEBUG
@@ -603,6 +607,7 @@ BOOL CEDClient::OnLoggedIn()
 	return TRUE;
 }
 
+#ifdef _WIN32	// browse results live in the browse window
 CHostBrowser* CEDClient::GetBrowser() const
 {
 	CSingleLock pLock( &theApp.m_pSection, FALSE );
@@ -632,6 +637,12 @@ CHostBrowser* CEDClient::GetBrowser() const
 	}
 	return NULL;
 }
+#else
+CHostBrowser* CEDClient::GetBrowser() const
+{
+	return NULL;	// Linux: no browse windows (yet)
+}
+#endif // _WIN32
 
 CDownloadSource* CEDClient::GetSource() const
 {

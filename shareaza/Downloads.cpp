@@ -39,7 +39,9 @@
 #include "MatchObjects.h"
 #include "ShareazaURL.h"
 
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
 
 #ifdef _DEBUG
 #undef THIS_FILE

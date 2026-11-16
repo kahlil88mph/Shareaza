@@ -32,8 +32,12 @@
 #include "SharedFolder.h"
 #include "SharedFile.h"
 #include "AlbumFolder.h"
+#ifdef _WIN32
 #include "DlgExistingFile.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
 
 #include "QueryHit.h"
 #include "QuerySearch.h"

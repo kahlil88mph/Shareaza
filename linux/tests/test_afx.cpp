@@ -2,6 +2,7 @@
 // collections, exceptions and locks.
 
 #include <compat/afxcore.h>
+#include <compat/atlcoll.h>
 
 #include <cstdio>
 #include <thread>
@@ -60,6 +61,13 @@ static void TestCString()
 	CHECK( CStringW( CW2A( L"\x20ac", CP_UTF8 ) ) == CStringW( CA2W( "\xe2\x82\xac", CP_ACP ) ) );
 	CHECK( CStringW( CA2W( "\xe2\x82\xac", CP_UTF8 ) ) == L"\x20ac" );
 
+	// FormatMessage inserts by number, in any order, with optional types
+	CString fm;
+	fm.FormatMessage( L"%2 of %1 (%3!d!%%)", L"ten", L"two", 20 );
+	CHECK( fm == L"two of ten (20%)" );
+	fm.FormatMessage( L"File %1!s! is %2!I64u! bytes%n", L"a.bin", 1ull << 33 );
+	CHECK( fm == L"File a.bin is 8589934592 bytes\r\n" );
+
 	CStringA fa;
 	fa.Format( "%s=%d %S", "k", -3, L"wide" );
 	CHECK( fa == "k=-3 wide" );
@@ -107,6 +115,37 @@ static void TestCollections()
 	CHECK( arr.GetSize() == 6 && arr[ 1 ] == 2 && arr[ 4 ] == 0 && arr[ 5 ] == 6 );
 	arr.RemoveAt( 3, 2 );
 	CHECK( arr.GetSize() == 4 && arr[ 3 ] == 6 );
+}
+
+static void TestAtlMap()
+{
+	CAtlMap< CString, int, CStringElementTraitsI< CString > > m;	// case-insensitive keys, as the library uses
+	m.SetAt( L"Song.MP3", 1 );
+	m[ L"other" ] = 2;
+	int v = 0;
+	CHECK( m.Lookup( L"song.mp3", v ) && v == 1 && m.GetCount() == 2 );
+	m.SetAt( L"SONG.mp3", 3 );	// same key
+	CHECK( m.GetCount() == 2 && m.Lookup( L"song.MP3" )->m_value == 3 );
+	for ( int i = 0; i < 500; ++i ) { CString k; k.Format( L"k%d", i ); m[ k ] = i; }
+	int nSum = 0, nCount = 0;
+	for ( POSITION pos = m.GetStartPosition(); pos; )
+	{
+		CString k; int n;
+		m.GetNextAssoc( pos, k, n );
+		if ( k.Left( 1 ) == L"k" ) nSum += n;
+		++nCount;
+	}
+	CHECK( nCount == 502 && nSum == 499 * 500 / 2 );
+	// Remove while iterating
+	for ( POSITION pos = m.GetStartPosition(); pos; )
+	{
+		POSITION posThis = pos;
+		if ( m.GetNext( pos )->m_key.Left( 1 ) == L"k" ) m.RemoveAtPos( posThis );
+	}
+	CHECK( m.GetCount() == 2 && ! m.Lookup( L"k7", v ) && m.RemoveKey( L"OTHER" ) && m.GetCount() == 1 );
+	CAtlMap< DWORD, CString > d;
+	d[ 7 ] = L"seven";
+	CHECK( d.Lookup( 7 ) && d.Lookup( 7 )->m_value == L"seven" && ! d.Lookup( 8 ) );
 }
 
 static void TestExceptionsAndLocks()
@@ -215,6 +254,7 @@ int main()
 	TestThreadsAndWaits();
 	TestCString();
 	TestCollections();
+	TestAtlMap();
 	TestExceptionsAndLocks();
 	printf( "afx: %d passed, %d failed\n", g_nPassed, g_nFailed );
 	return g_nFailed ? 1 : 0;

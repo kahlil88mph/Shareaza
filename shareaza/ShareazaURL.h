@@ -108,6 +108,13 @@ protected:
 	BOOL	ParsePiolet(LPCTSTR pszURL);
 	BOOL	ParsePioletFile(LPCTSTR pszURL);
 
+// Magnet links
+public:
+	// Gathers more information about file (including trackers list)
+	static void	Resolve(CShareazaFile& pFile, CString& sTracker, CString& sWebSeed);
+	// Gathers more information about file (including trackers list) and returns magnet-link
+	static CString	CreateMagnet(CShareazaFile& pFile);
+
 // Registration Operations
 public:
 	static void	Register(BOOL bRegister = TRUE, BOOL bOnStartup = FALSE);

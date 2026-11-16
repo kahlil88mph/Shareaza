@@ -23,7 +23,9 @@
 #include "Shareaza.h"
 #include "Settings.h"
 #include "BTInfo.h"
+#ifdef _WIN32
 #include "DlgSelect.h"
+#endif // _WIN32
 #include "Download.h"
 #include "FragmentedFile.h"
 #include "Library.h"
@@ -318,7 +320,7 @@ BOOL CFragmentedFile::Open(const CBTInfo& oInfo, BOOL bWrite)
 		if ( ! Open( strSource, nOffset, oInfo.m_nSize, bWrite, oInfo.m_sName ) )
 		{
 			m_sFileError.Format( LoadString( bWrite ? IDS_DOWNLOAD_FILE_CREATE_ERROR : IDS_BT_SEED_SOURCE_LOST ), (LPCTSTR)strSource );
-			theApp.Message( MSG_ERROR, _T("%s"), m_sFileError + _T(" ") + GetErrorString( m_nFileError ) );
+			theApp.Message( MSG_ERROR, _T("%s"), (LPCTSTR)( m_sFileError + _T(" ") + GetErrorString( m_nFileError ) ) );
 
 			Close();
 			return FALSE;
@@ -541,6 +543,7 @@ int CFragmentedFile::SelectFile(CSingleLock* pLock) const
 	}
 	else if ( nCount > 1 )
 	{
+#ifdef _WIN32	// ask the user which file
 		CSelectDialog dlg;
 
 		{
@@ -561,6 +564,11 @@ int CFragmentedFile::SelectFile(CSingleLock* pLock) const
 			return -1;
 
 		return (int)dlg.Get();
+#else
+		// Linux: nobody to ask which of several files to use.
+		UNUSED_ALWAYS( pLock );
+		return -1;
+#endif
 	}
 	else
 	{
@@ -659,9 +667,9 @@ DWORD CFragmentedFile::Move(DWORD nIndex, LPCTSTR pszDestination, LPPROGRESS_ROU
 				for (int index = 0; GetFileAttributes( strTarget ) != INVALID_FILE_ATTRIBUTES; index++ )
 				{
 					if (nDot > 0)
-						strTarget.Format( _T("%s\\%s_%u%s"), pszDestination, sName.Left( nDot ), index, sName.Right( sName.GetLength() - nDot ) );
+						strTarget.Format( _T("%s\\%s_%u%s"), pszDestination, (LPCTSTR)sName.Left( nDot ), index, (LPCTSTR)sName.Right( sName.GetLength() - nDot ) );
 					else
-						strTarget.Format( _T("%s\\%s_%u"), pszDestination, sName, index );
+						strTarget.Format( _T("%s\\%s_%u"), pszDestination, (LPCTSTR)sName, index );
 				}
 
 			// Check if the target file exists

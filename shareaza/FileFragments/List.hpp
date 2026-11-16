@@ -27,7 +27,7 @@ namespace Ranges
 template< class RangeT, template< class, class > class TraitsT, class ContainerT = std::set
 	<
 		RangeT,
-		RangeCompare< RangeT::size_type, RangeT::payload_type >
+		RangeCompare< typename RangeT::size_type, typename RangeT::payload_type >
 	> >
 class List : public TraitsT< RangeT, ContainerT >
 {
@@ -210,7 +210,7 @@ private:
 	container_type m_set;
 	struct cmp_size : public std::binary_function< RangeT, RangeT, bool >
 	{
-		result_type operator()(first_argument_type lhs, second_argument_type rhs) const
+		bool operator()(const RangeT& lhs, const RangeT& rhs) const
 		{
 			return lhs.size() < rhs.size();
 		}
@@ -218,7 +218,7 @@ private:
 	struct overlaps_helper : public std::unary_function< RangeT, bool >
 	{
 		overlaps_helper(const List& list) : m_list( list ) { }
-		result_type operator()(argument_type arg) const
+		bool operator()(const RangeT& arg) const
 		{
 			return m_list.overlaps( arg );
 		}
@@ -244,13 +244,13 @@ namespace Ranges
 template< class RangeT, template< class, class > class TraitsT, class ContainerT >
 typename RangeT::size_type List< RangeT, TraitsT, ContainerT >::insert(const RangeT& value)
 {
-	if ( value.end() > limit() )
+	if ( value.end() > this->limit() )
 	{
-//		throw ListException( value, limit() );
+//		throw ListException( value, this->limit() );
 		CString msg;
 		msg.Format( _T( "ListError - insert - size: %I64u - limit: %I64u - sum: %I64u - " )
 			_T( "Range - begin: %I64u - end: %I64u" ),
-			size(), limit(), Traits::length_sum(), value.begin(), value.end() );
+			size(), this->limit(), Traits::length_sum(), value.begin(), value.end() );
 		theApp.Message( MSG_ERROR, msg );
 		return 0;
 	}
@@ -265,13 +265,13 @@ template< class RangeT, template< class, class > class TraitsT, class ContainerT
 typename RangeT::size_type List< RangeT, TraitsT, ContainerT >::insert(
 	typename List< RangeT, TraitsT, ContainerT >::iterator where, const RangeT& value)
 {
-	if ( value.end() > limit() )
+	if ( value.end() > this->limit() )
 	{
-//		throw ListException( value, limit() );
+//		throw ListException( value, this->limit() );
 		CString msg;
 		msg.Format( _T( "ListError - insert(h) - size: %I64u - limit: %I64u - sum: %I64u - " )
 			_T( "Range - begin: %I64u - end: %I64u" ),
-			size(), limit(), Traits::length_sum(), value.begin(), value.end() );
+			size(), this->limit(), Traits::length_sum(), value.begin(), value.end() );
 		theApp.Message( MSG_ERROR, msg );
 		return 0;
 	}
@@ -286,13 +286,13 @@ typename RangeT::size_type List< RangeT, TraitsT, ContainerT >::insert(
 template< class RangeT, template< class, class > class TraitsT, class ContainerT >
 typename RangeT::size_type List< RangeT, TraitsT, ContainerT >::erase(const RangeT& value)
 {
-	if ( value.end() > limit() )
+	if ( value.end() > this->limit() )
 	{
-//		throw ListException( value, limit() );
+//		throw ListException( value, this->limit() );
 		CString msg;
 		msg.Format( _T( "ListError - erase - size: %I64u - limit: %I64u - sum: %I64u - " )
 			_T( "Range - begin: %I64u - end: %I64u" ),
-			size(), limit(), Traits::length_sum(), value.begin(), value.end() );
+			size(), this->limit(), Traits::length_sum(), value.begin(), value.end() );
 		theApp.Message( MSG_ERROR, msg );
 		return 0;
 	}

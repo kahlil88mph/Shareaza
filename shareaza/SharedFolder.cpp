@@ -28,7 +28,9 @@
 #include "LibraryDictionary.h"
 #include "LibraryFolders.h"
 #include "Application.h"
+#ifdef _WIN32
 #include "Skin.h"
+#endif // _WIN32
 #include "XML.h"
 
 #ifdef _DEBUG
@@ -802,6 +804,7 @@ void CLibraryFolder::OnFileRename(CLibraryFile* pFile)
 //////////////////////////////////////////////////////////////////////
 // CLibraryFolders maintain physical folder
 
+#ifdef _WIN32	// desktop.ini folder icons
 void CLibraryFolder::Maintain(BOOL bAdd)
 {
 	CString sIconIndex, sIconFile;
@@ -883,6 +886,12 @@ void CLibraryFolder::Maintain(BOOL bAdd)
 		}
 	}
 }
+#else
+void CLibraryFolder::Maintain(BOOL /*bAdd*/)
+{
+	// Linux: folders have no desktop.ini icon to maintain.
+}
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CLibraryFolder ILibraryFolder

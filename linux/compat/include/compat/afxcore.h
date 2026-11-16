@@ -11,6 +11,8 @@
 #pragma once
 
 #include <windows.h>
+#define __AFX_H__	// MFC is present (engine headers test this)
+
 #include "cstring.h"
 #include "handles.h"
 
@@ -39,6 +41,11 @@
 #define ASSERT_POINTER(p, type) ASSERT((p) != NULL)
 #define ASSERT_KINDOF(c, p) ((void)0)
 #define TRACE(...) ((void)0)
+#ifdef _DEBUG
+#define DEBUG_ONLY(f) (f)
+#else
+#define DEBUG_ONLY(f) ((void)0)
+#endif
 #define TRACE0(s) ((void)0)
 #define DEBUG_NEW new
 #define DECLARE_DYNAMIC(c)
@@ -539,3 +546,77 @@ template<> inline UINT AFXAPI HashKey< LPCTSTR >(LPCTSTR key)
 	for ( ; key && *key; ++key ) nHash = ( nHash << 5 ) + nHash + *key;
 	return nHash;
 }
+
+// ---------------------------------------------------------------------------
+// ATL CTime / CTimeSpan (seconds since 1970, like time_t)
+
+class CTimeSpan
+{
+public:
+	CTimeSpan() : m_t( 0 ) {}
+	CTimeSpan(__int64 t) : m_t( t ) {}
+	CTimeSpan(LONG lDays, int nHours, int nMins, int nSecs) : m_t( ( ( (__int64)lDays * 24 + nHours ) * 60 + nMins ) * 60 + nSecs ) {}
+	__int64 GetTimeSpan() const { return m_t; }
+	__int64 GetDays() const { return m_t / 86400; }
+	__int64 GetTotalHours() const { return m_t / 3600; }
+	__int64 GetTotalMinutes() const { return m_t / 60; }
+	__int64 GetTotalSeconds() const { return m_t; }
+	LONG GetHours() const { return (LONG)( GetTotalHours() % 24 ); }
+	LONG GetMinutes() const { return (LONG)( GetTotalMinutes() % 60 ); }
+	LONG GetSeconds() const { return (LONG)( m_t % 60 ); }
+	bool operator<(CTimeSpan o) const { return m_t < o.m_t; }
+	bool operator>(CTimeSpan o) const { return m_t > o.m_t; }
+private:
+	__int64 m_t;
+};
+
+class CTime
+{
+public:
+	CTime() : m_t( 0 ) {}
+	CTime(__time64_t t) : m_t( t ) {}
+	CTime(int nYear, int nMonth, int nDay, int nHour, int nMin, int nSec, int nDST = -1)
+	{
+		struct tm v = {};
+		v.tm_year = nYear - 1900; v.tm_mon = nMonth - 1; v.tm_mday = nDay;
+		v.tm_hour = nHour; v.tm_min = nMin; v.tm_sec = nSec; v.tm_isdst = nDST;
+		m_t = mktime( &v );	// local time, as ATL does
+	}
+	CTime(const FILETIME& ft)
+	{
+		const ULONGLONG n = ( (ULONGLONG)ft.dwHighDateTime << 32 ) | ft.dwLowDateTime;
+		m_t = (__time64_t)( ( n - 116444736000000000ull ) / 10000000u );
+	}
+	static CTime GetCurrentTime() { return CTime( (__time64_t)::time( NULL ) ); }
+	__time64_t GetTime() const { return m_t; }
+	struct tm* GetLocalTm(struct tm* p) const { time_t t = (time_t)m_t; return localtime_r( &t, p ); }
+	struct tm* GetGmtTm(struct tm* p) const { time_t t = (time_t)m_t; return gmtime_r( &t, p ); }
+	int GetYear() const { struct tm v; GetLocalTm( &v ); return v.tm_year + 1900; }
+	int GetMonth() const { struct tm v; GetLocalTm( &v ); return v.tm_mon + 1; }
+	int GetDay() const { struct tm v; GetLocalTm( &v ); return v.tm_mday; }
+	int GetHour() const { struct tm v; GetLocalTm( &v ); return v.tm_hour; }
+	int GetMinute() const { struct tm v; GetLocalTm( &v ); return v.tm_min; }
+	int GetSecond() const { struct tm v; GetLocalTm( &v ); return v.tm_sec; }
+	int GetDayOfWeek() const { struct tm v; GetLocalTm( &v ); return v.tm_wday + 1; }	// 1 = Sunday
+	CString Format(LPCTSTR pszFormat) const { struct tm v; GetLocalTm( &v ); return FormatTm( pszFormat, v ); }
+	CString FormatGmt(LPCTSTR pszFormat) const { struct tm v; GetGmtTm( &v ); return FormatTm( pszFormat, v ); }
+	CTimeSpan operator-(CTime o) const { return CTimeSpan( m_t - o.m_t ); }
+	CTime operator-(CTimeSpan s) const { return CTime( m_t - s.GetTimeSpan() ); }
+	CTime operator+(CTimeSpan s) const { return CTime( m_t + s.GetTimeSpan() ); }
+	CTime& operator+=(CTimeSpan s) { m_t += s.GetTimeSpan(); return *this; }
+	CTime& operator-=(CTimeSpan s) { m_t -= s.GetTimeSpan(); return *this; }
+	bool operator==(CTime o) const { return m_t == o.m_t; }
+	bool operator!=(CTime o) const { return m_t != o.m_t; }
+	bool operator<(CTime o) const { return m_t < o.m_t; }
+	bool operator>(CTime o) const { return m_t > o.m_t; }
+	bool operator<=(CTime o) const { return m_t <= o.m_t; }
+	bool operator>=(CTime o) const { return m_t >= o.m_t; }
+private:
+	static CString FormatTm(LPCTSTR pszFormat, const struct tm& v)
+	{
+		wchar_t sz[ 256 ];
+		const size_t n = wcsftime( sz, 256, pszFormat ? pszFormat : L"", &v );
+		return CString( sz, (int)n );
+	}
+	__time64_t m_t;
+};

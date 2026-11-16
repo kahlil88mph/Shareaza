@@ -342,7 +342,7 @@ public:
 
 // For auto_ptr< CFragmentedFile >
 template<>
-inline void boost::checked_delete< CFragmentedFile >(CFragmentedFile* x)
+inline void boost::checked_delete< CFragmentedFile >(CFragmentedFile* x) BOOST_NOEXCEPT
 {
     if ( x )
 		x->Release();

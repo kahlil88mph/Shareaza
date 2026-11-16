@@ -23,7 +23,7 @@
 #include "Shareaza.h"
 #include "Network.h"
 #include "ShareazaFile.h"
-#include "DlgURLCopy.h"
+#include "ShareazaURL.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -531,6 +531,6 @@ STDMETHODIMP CShareazaFile::XShareazaFile::get_URL(BSTR FAR* psURL)
 STDMETHODIMP CShareazaFile::XShareazaFile::get_Magnet(BSTR FAR* psMagnet)
 {
 	METHOD_PROLOGUE( CShareazaFile, ShareazaFile )
-	*psMagnet = CComBSTR( CURLCopyDlg::CreateMagnet( *pThis ) ).Detach();
+	*psMagnet = CComBSTR( CShareazaURL::CreateMagnet( *pThis ) ).Detach();
 	return S_OK;
 }

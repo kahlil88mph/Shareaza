@@ -24,9 +24,15 @@
 #include "Settings.h"
 #include "Transfers.h"
 #include "DownloadWithExtras.h"
+#ifdef _WIN32
 #include "DlgFilePreview.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "DlgDownloadMonitor.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "Plugins.h"
+#endif // _WIN32
 
 
 #ifdef _DEBUG
@@ -60,6 +66,7 @@ CDownloadWithExtras::~CDownloadWithExtras()
 //////////////////////////////////////////////////////////////////////
 // CDownloadWithExtras preview function
 
+#ifdef _WIN32	// preview window
 BOOL CDownloadWithExtras::PreviewFile(DWORD nIndex, CSingleLock* /* pLock */)
 {
 	DeletePreviews();
@@ -72,6 +79,12 @@ BOOL CDownloadWithExtras::PreviewFile(DWORD nIndex, CSingleLock* /* pLock */)
 
 	return TRUE;
 }
+#else
+BOOL CDownloadWithExtras::PreviewFile(DWORD /*nIndex*/, CSingleLock* /* pLock */)
+{
+	return FALSE;	// Linux: no preview window
+}
+#endif // _WIN32
 
 BOOL CDownloadWithExtras::GotPreview() const
 {
@@ -327,6 +340,7 @@ int CDownloadWithExtras::GetReviewAverage() const
 //////////////////////////////////////////////////////////////////////
 // CDownloadWithExtras monitor window
 
+#ifdef _WIN32	// monitor window
 void CDownloadWithExtras::ShowMonitor()
 {
 	ASSUME_LOCK( Transfers.m_pSection );
@@ -341,12 +355,24 @@ void CDownloadWithExtras::ShowMonitor()
 		m_pMonitorWnd->Show();
 	}
 }
+#else
+void CDownloadWithExtras::ShowMonitor()
+{
+}
+#endif // _WIN32
 
+#ifdef _WIN32
 BOOL CDownloadWithExtras::IsMonitorVisible() const
 {
 	return m_pMonitorWnd && m_pMonitorWnd->m_pDownload &&
 		IsWindow( m_pMonitorWnd->GetSafeHwnd() );
 }
+#else
+BOOL CDownloadWithExtras::IsMonitorVisible() const
+{
+	return FALSE;
+}
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CDownloadWithExtras serialize

@@ -22,7 +22,10 @@
 #pragma once
 
 #include "Neighbour.h"
+#include "ChatTypes.h"
+#ifdef _WIN32
 #include "WndChat.h"
+#endif
 
 class CChatSession;
 class CDCPacket;

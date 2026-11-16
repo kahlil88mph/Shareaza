@@ -21,6 +21,17 @@
 
 #pragma once
 
+#ifndef _WIN32
+// Linux: no plugins, so no application object to hand them (linux/engine/ShareazaHost.cpp).
+class CApplication
+{
+public:
+	static HRESULT GetApp(IApplication** ppIApplication) throw();
+	static HRESULT GetUI(IUserInterface** ppIUserInterface) throw();
+	static HRESULT GetSettings(ISettings** ppISettings) throw();
+};
+#else
+
 
 class CApplication : public CComObject
 {
@@ -76,3 +87,5 @@ protected:
 	DECLARE_OLECREATE(CApplication)
 	DECLARE_INTERFACE_MAP()
 };
+
+#endif // _WIN32

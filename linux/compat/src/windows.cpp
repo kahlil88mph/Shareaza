@@ -16,6 +16,7 @@
 #include <ctime>
 #include <string>
 #include <vector>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 
@@ -645,4 +646,86 @@ int compat_sscanf(const char* buf, const char* fmt, ...)
 	const int r = vsscanf( buf, f.data(), a );
 	va_end( a );
 	return r;
+}
+
+// ---------------------------------------------------------------------------
+// WSAStringToAddress / WSAAddressToString
+
+INT WSAStringToAddressW(LPWSTR pszAddress, INT nFamily, LPWSAPROTOCOL_INFOW, LPSOCKADDR pAddress, LPINT pnLength)
+{
+	if ( ! pszAddress || ! pAddress || ! pnLength ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+	char sz[ 128 ];
+	const int n = WideCharToMultiByte( CP_UTF8, 0, pszAddress, -1, sz, sizeof( sz ), NULL, NULL );
+	if ( n <= 0 ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+	std::string s( sz );
+	unsigned long nPort = 0;
+	if ( nFamily == AF_INET6 )
+	{
+		uint32_t nScope = 0;
+		if ( ! s.empty() && s[ 0 ] == '[' )
+		{
+			const size_t e = s.find( ']' );
+			if ( e == std::string::npos ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+			if ( e + 1 < s.size() )
+			{
+				if ( s[ e + 1 ] != ':' ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+				nPort = strtoul( s.c_str() + e + 2, NULL, 10 );
+			}
+			s = s.substr( 1, e - 1 );
+		}
+		const size_t nPct = s.find( '%' );
+		if ( nPct != std::string::npos ) { nScope = (uint32_t)strtoul( s.c_str() + nPct + 1, NULL, 10 ); s.resize( nPct ); }
+		if ( *pnLength < (INT)sizeof( SOCKADDR_IN6 ) ) { *pnLength = sizeof( SOCKADDR_IN6 ); WSASetLastError( EFAULT ); return SOCKET_ERROR; }
+		SOCKADDR_IN6* p = reinterpret_cast< SOCKADDR_IN6* >( pAddress );
+		memset( p, 0, sizeof( *p ) );
+		if ( inet_pton( AF_INET6, s.c_str(), &p->sin6_addr ) != 1 || nPort > 65535 ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+		p->sin6_family = AF_INET6;
+		p->sin6_port = htons( (u_short)nPort );
+		p->sin6_scope_id = nScope;
+		*pnLength = sizeof( SOCKADDR_IN6 );
+		return 0;
+	}
+	if ( nFamily == AF_INET )
+	{
+		const size_t nColon = s.find( ':' );
+		if ( nColon != std::string::npos ) { nPort = strtoul( s.c_str() + nColon + 1, NULL, 10 ); s.resize( nColon ); }
+		if ( *pnLength < (INT)sizeof( SOCKADDR_IN ) ) { *pnLength = sizeof( SOCKADDR_IN ); WSASetLastError( EFAULT ); return SOCKET_ERROR; }
+		SOCKADDR_IN* p = reinterpret_cast< SOCKADDR_IN* >( pAddress );
+		memset( p, 0, sizeof( *p ) );
+		if ( inet_pton( AF_INET, s.c_str(), &p->sin_addr ) != 1 || nPort > 65535 ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+		p->sin_family = AF_INET;
+		p->sin_port = htons( (u_short)nPort );
+		*pnLength = sizeof( SOCKADDR_IN );
+		return 0;
+	}
+	WSASetLastError( EAFNOSUPPORT );
+	return SOCKET_ERROR;
+}
+
+INT WSAAddressToStringW(LPSOCKADDR pAddress, DWORD, LPWSAPROTOCOL_INFOW, LPWSTR pszOut, LPDWORD pnOut)
+{
+	if ( ! pAddress || ! pnOut ) { WSASetLastError( EINVAL ); return SOCKET_ERROR; }
+	char sz[ 128 ], szAddr[ INET6_ADDRSTRLEN ];
+	if ( pAddress->sa_family == AF_INET6 )
+	{
+		const SOCKADDR_IN6* p = reinterpret_cast< const SOCKADDR_IN6* >( pAddress );
+		inet_ntop( AF_INET6, &p->sin6_addr, szAddr, sizeof( szAddr ) );
+		std::string s( szAddr );
+		if ( p->sin6_scope_id ) s += "%" + std::to_string( p->sin6_scope_id );
+		if ( p->sin6_port ) s = "[" + s + "]:" + std::to_string( ntohs( p->sin6_port ) );
+		snprintf( sz, sizeof( sz ), "%s", s.c_str() );
+	}
+	else if ( pAddress->sa_family == AF_INET )
+	{
+		const SOCKADDR_IN* p = reinterpret_cast< const SOCKADDR_IN* >( pAddress );
+		inet_ntop( AF_INET, &p->sin_addr, szAddr, sizeof( szAddr ) );
+		if ( p->sin_port ) snprintf( sz, sizeof( sz ), "%s:%u", szAddr, (unsigned)ntohs( p->sin_port ) );
+		else snprintf( sz, sizeof( sz ), "%s", szAddr );
+	}
+	else { WSASetLastError( EAFNOSUPPORT ); return SOCKET_ERROR; }
+	const DWORD nNeed = (DWORD)strlen( sz ) + 1;	// characters, including the NUL
+	if ( ! pszOut || *pnOut < nNeed ) { *pnOut = nNeed; WSASetLastError( EFAULT ); return SOCKET_ERROR; }
+	for ( DWORD i = 0; i < nNeed; ++i ) pszOut[ i ] = (wchar_t)(unsigned char)sz[ i ];
+	*pnOut = nNeed;
+	return 0;
 }

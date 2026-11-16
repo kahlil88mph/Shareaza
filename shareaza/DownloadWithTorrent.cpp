@@ -24,7 +24,28 @@
 #include "Settings.h"
 #include "BTClient.h"
 #include "BTPacket.h"
+#ifdef _WIN32
 #include "DlgProgressBar.h"
+#else
+// Linux: no progress window while converting old torrent downloads.
+struct CProgressBarDlg
+{
+	explicit CProgressBarDlg(CWnd*) {}
+	void SetWindowText(LPCTSTR) {}
+	void SetActionText(LPCTSTR) {}
+	void SetSubActionText(LPCTSTR) {}
+	void SetEventText(LPCTSTR) {}
+	void SetSubEventText(LPCTSTR) {}
+	void SetEventRange(int, int) {}
+	void SetSubEventRange(int, int) {}
+	void SetEventPos(int) {}
+	void StepSubEvent(int) {}
+	void CenterWindow() {}
+	void ShowWindow(int) {}
+	void UpdateWindow() {}
+	void UpdateData(BOOL) {}
+};
+#endif // _WIN32
 #include "DownloadGroups.h"
 #include "DownloadSource.h"
 #include "DownloadTransferBT.h"
@@ -277,7 +298,9 @@ void CDownloadWithTorrent::Serialize(CArchive& ar, int nVersion)
 					oProgress.SetEventPos( (int)( nTotal / 1024ull ) );
 					oProgress.UpdateWindow();
 
+#ifdef _WIN32
 					AfxGetMainWnd()->UpdateWindow();
+#endif
 
 					Sleep( 50 );
 				}

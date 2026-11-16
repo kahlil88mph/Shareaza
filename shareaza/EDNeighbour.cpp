@@ -114,7 +114,7 @@ BOOL CEDNeighbour::ConnectTo(const IN6_ADDR* pAddress, WORD nPort, BOOL bAutomat
 	else
 	{
 		theApp.Message( MSG_ERROR, IDS_CONNECTION_CONNECT_FAIL,
-			IPv6ToString( pAddress, true ) );
+			(LPCTSTR)IPv6ToString( pAddress, true ) );
 		return FALSE;
 	}
 

@@ -34,7 +34,12 @@
 #include "G2Packet.h"
 #include "GGEP.h"
 #include "GProfile.h"
+#ifdef _WIN32
 #include "ImageServices.h"
+#define IsFilePreviewable( pszFile ) CImageServices::IsFileViewable( pszFile )
+#else
+#define IsFilePreviewable( pszFile ) FALSE	// Linux: no image decoders, so no dynamic previews
+#endif
 #include "Library.h"
 #include "LibraryFolders.h"
 #include "LocalSearch.h"
@@ -594,7 +599,7 @@ void CLocalSearch::AddHitG2(CG2Packet* pPacket, CSchemaMap& /*pSchemas*/, CLibra
 
 			if ( Settings.Uploads.SharePreviews &&
 				( pFile->m_bCachedPreview || ( Settings.Uploads.DynamicPreviews &&
-				CImageServices::IsFileViewable( (LPCTSTR)pFile->m_sName ) ) ) )
+				IsFilePreviewable( (LPCTSTR)pFile->m_sName ) ) ) )
 			{
 				if ( bCalculate )
 					nGroup += G2_PACKET_LEN( G2_PACKET_PREVIEW_URL, 0 );

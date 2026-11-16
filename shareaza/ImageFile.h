@@ -21,6 +21,51 @@
 
 #pragma once
 
+#ifndef _WIN32
+// Linux (linux/engine/ImageFile.cpp): the Windows build decodes images
+// through image plugins, which Linux does not have. The class keeps its
+// interface and its archive format; loading reports failure.
+class CImageFile
+{
+public:
+	CImageFile();
+	virtual ~CImageFile();
+
+	BOOL			m_bScanned;
+	int				m_nWidth;
+	int				m_nHeight;
+	DWORD			m_nComponents;
+	LPBYTE			m_pImage;
+	WORD			m_nFlags;
+
+	BOOL	LoadFromMemory(LPCTSTR pszType, LPCVOID pData, DWORD nLength, BOOL bScanOnly = FALSE, BOOL bPartialOk = FALSE);
+	BOOL	LoadFromFile(LPCTSTR pszFile, BOOL bScanOnly = FALSE, BOOL bPartialOk = FALSE);
+	BOOL	LoadFromURL(LPCTSTR pszURL);
+	BOOL	SaveToMemory(LPCTSTR pszType, int nQuality, LPBYTE* ppBuffer, DWORD* pnLength);
+	BOOL	SaveToFile(LPCTSTR pszFile, int nQuality, DWORD* pnLength = NULL);
+	DWORD	GetSerialSize() const;
+	void	Serialize(CArchive& ar);
+	BOOL	FitTo(int nNewWidth, int nNewHeight);
+	BOOL	Resample(int nNewWidth, int nNewHeight);
+	BOOL	EnsureRGB(COLORREF crBack = 0xFFFFFFFF);
+	BOOL	SwapRGB();
+	inline BOOL IsLoaded() const { return ( m_pImage != NULL ); }
+
+	enum ImageFlags
+	{
+		idRemote = 0x1
+	};
+
+protected:
+	void	Clear();
+
+private:
+	CImageFile(const CImageFile&);
+	CImageFile& operator=(CImageFile&);
+};
+
+#else
+
 
 class CImageFile
 {
@@ -79,3 +124,5 @@ private:
 	CImageFile(const CImageFile&);
 	CImageFile& operator=(CImageFile&);
 };
+
+#endif // _WIN32

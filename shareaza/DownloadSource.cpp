@@ -22,7 +22,9 @@
 #include "StdAfx.h"
 #include "Shareaza.h"
 #include "Settings.h"
+#ifdef _WIN32
 #include "CoolInterface.h"
+#endif // _WIN32
 #include "Download.h"
 #include "DownloadSource.h"
 #include "DownloadTransferBT.h"
@@ -37,7 +39,9 @@
 #include "EDClient.h"
 #include "EDClients.h"
 #include "EDPacket.h"
+#ifdef _WIN32
 #include "FragmentBar.h"
+#endif // _WIN32
 #include "FragmentedFile.h"
 #include "Neighbours.h"
 #include "Network.h"
@@ -1101,6 +1105,7 @@ void CDownloadSource::Close(DWORD nRetryAfter)
 	}
 }
 
+#ifdef _WIN32	// the source bar in the download list
 void CDownloadSource::Draw(CDC* pDC, CRect* prcBar, COLORREF crNatural)
 {
 	ASSUME_LOCK( Transfers.m_pSection );
@@ -1150,7 +1155,9 @@ void CDownloadSource::Draw(CDC* pDC, CRect* prcBar, COLORREF crNatural)
 		pDC->FillSolidRect( prcBar, CoolInterface.m_crWindow );
 	}
 }
+#endif // _WIN32
 
+#ifdef _WIN32	// the source bar in the download list
 void CDownloadSource::Draw(CDC* pDC, CRect* prcBar)
 {
 	ASSUME_LOCK( Transfers.m_pSection );
@@ -1202,3 +1209,4 @@ void CDownloadSource::Draw(CDC* pDC, CRect* prcBar)
 			nOffset, nLength, crTransfer, true );
 	}
 }
+#endif // _WIN32

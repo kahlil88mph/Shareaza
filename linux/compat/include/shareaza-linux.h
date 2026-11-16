@@ -17,6 +17,7 @@
 #include <compat/com.h>
 #include <compat/ole.h>
 #include <compat/afxfile.h>
+#include <compat/afxgui.h>
 
 #include <cmath>
 #include <tchar.h>

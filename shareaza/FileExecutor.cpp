@@ -31,8 +31,12 @@
 #include "ShellIcons.h"
 #include "XML.h"
 
+#ifdef _WIN32
 #include "DlgTorrentSeed.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndLibrary.h"
+#endif // _WIN32
 #include "WndMedia.h"
 
 #ifdef _DEBUG

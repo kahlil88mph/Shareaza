@@ -64,7 +64,10 @@ set(ENGINE_SOURCES
 	Hashes/HashStringConversion.cpp
 )
 list(TRANSFORM ENGINE_SOURCES PREPEND ${SHAREAZA_SRC}/shareaza/)
-list(APPEND ENGINE_SOURCES engine/ShareazaHost.cpp engine/Registry.cpp)
+list(APPEND ENGINE_SOURCES engine/ShareazaHost.cpp engine/Registry.cpp engine/ShellIcons.cpp engine/ImageFile.cpp)
+# Host pieces that call into transfers, the library and URLs. They join the
+# build once those modules are ported (syntax-checked until then).
+set(HOST_LATER engine/ShareazaHostFiles.cpp engine/ShareazaHostMessages.cpp)
 
 # G2Packet.cpp holds both the G2 wire format and the protocol handlers,
 # which reach into the whole network layer. Until that layer is ported,
@@ -145,6 +148,10 @@ add_executable(test-compat tests/test_compat.cpp)
 target_link_libraries(test-compat PRIVATE shareaza-compat)
 add_test(NAME compat COMMAND test-compat)
 
+add_executable(test-files tests/test_files.cpp)
+target_link_libraries(test-files PRIVATE shareaza-compat)
+add_test(NAME files COMMAND test-files)
+
 add_executable(test-afx tests/test_afx.cpp)
 target_link_libraries(test-afx PRIVATE shareaza-compat)
 add_test(NAME afx COMMAND test-afx)
@@ -160,6 +167,10 @@ add_test(NAME settings COMMAND test-settings)
 add_executable(test-com tests/test_com.cpp)
 target_link_libraries(test-com PRIVATE shareaza-engine)
 add_test(NAME com COMMAND test-com)
+
+add_executable(test-strings tests/test_strings.cpp)
+target_link_libraries(test-strings PRIVATE shareaza-engine)
+add_test(NAME strings COMMAND test-strings)
 
 add_executable(test-hashlib tests/test_hashlib.cpp)
 target_link_libraries(test-hashlib PRIVATE hashlib)

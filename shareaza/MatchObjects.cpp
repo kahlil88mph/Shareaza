@@ -37,7 +37,9 @@
 #include "Transfers.h"
 #include "XML.h"
 #include "Download.h"
+#ifdef _WIN32
 #include "CtrlMatch.h"
+#endif // _WIN32
 #include "LiveList.h"
 #include "ResultFilters.h"
 #include "WndSearch.h"

@@ -49,9 +49,15 @@
 #include "Downloads.h"
 #include "Uploads.h"
 #include "Library.h"
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndChild.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndSearchMonitor.h"
+#endif // _WIN32
 #include "GGEP.h"
 
 // If we are compiling in debug mode, replace the text "THIS_FILE" in the code with the name of this file

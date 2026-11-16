@@ -40,6 +40,7 @@
 #define __fastcall
 #define WINAPI
 #define CALLBACK
+#define PASCAL
 #define APIENTRY
 #define STDMETHODCALLTYPE
 #define __declspec(x)
@@ -50,6 +51,9 @@
 #define __assume(x) ((void)0)
 #define __noop(...) ((void)0)
 #define UNREFERENCED_PARAMETER(x) ((void)(x))
+#define IN
+#define OUT
+#define OPTIONAL
 
 // <crtdbg.h> debug assertions
 #ifdef _DEBUG
@@ -115,6 +119,7 @@ typedef int32_t             LONG;
 typedef uint32_t            ULONG;
 typedef uint32_t            DWORD;
 typedef long long           LONGLONG;	// not int64_t: that is long on LP64
+typedef long long           __time64_t;
 typedef unsigned long long  ULONGLONG;
 typedef unsigned long long  DWORD64;
 typedef long long           INT64;
@@ -252,7 +257,7 @@ typedef const IID& REFIID;
 typedef const CLSID& REFCLSID;
 inline bool operator==(const GUID& a, const GUID& b) { return memcmp( &a, &b, sizeof( GUID ) ) == 0; }
 inline bool operator!=(const GUID& a, const GUID& b) { return ! ( a == b ); }
-#define IsEqualGUID(a, b) ((a) == (b))
+inline BOOL IsEqualGUID(REFGUID a, REFGUID b) { return a == b; }	// a function, not a macro: classes have members of this name
 
 typedef struct tagPOINT { LONG x, y; } POINT, *LPPOINT;
 typedef struct tagSIZE { LONG cx, cy; } SIZE, *LPSIZE;
@@ -319,6 +324,14 @@ void  SetLastError(DWORD dwError);
 #define ERROR_ALREADY_EXISTS      183u
 #define ERROR_MORE_DATA           234u
 #define ERROR_NO_UNICODE_TRANSLATION 1113u
+#define ERROR_FILE_INVALID        1006u
+#define ERROR_DISK_FULL           112u
+#define ERROR_LOCK_VIOLATION      33u
+#define ERROR_BAD_PATHNAME        161u
+#define ERROR_DIR_NOT_EMPTY       145u
+#define ERROR_CANCELLED           1223u
+#define ERROR_TIMEOUT             1460u
+#define ERROR_NOT_SUPPORTED       50u
 
 // ---------------------------------------------------------------------------
 // Time
@@ -548,3 +561,41 @@ inline BOOL FreeLibrary(HMODULE) { return TRUE; }
 inline void* GetProcAddress(HMODULE, LPCSTR) { return NULL; }
 #define LoadLibrary LoadLibraryW
 #define LoadLibraryEx LoadLibraryExW
+
+// Windows Installer handle (metadata from .msi files: Windows only)
+typedef unsigned int MSIHANDLE;
+
+// No keyboard: GetAsyncKeyState reports every key up.
+#define VK_SHIFT   0x10
+#define VK_CONTROL 0x11
+#define VK_MENU    0x12
+inline SHORT GetAsyncKeyState(int) { return 0; }
+inline SHORT GetKeyState(int) { return 0; }
+
+#define FILE_READ_ATTRIBUTES  0x0080u
+#define FILE_WRITE_ATTRIBUTES 0x0100u
+#define FILE_READ_DATA        0x0001u
+#define FILE_WRITE_DATA       0x0002u
+#define DELETE                0x00010000u
+#define SYNCHRONIZE           0x00100000u
+
+// MSVC <limits.h> extras
+// Typed as MSVC types them (127i8, 0xffui8), so template deduction matches.
+#define _I8_MIN   ((__int8)(-127 - 1))
+#define _I8_MAX   ((__int8)127)
+#define _UI8_MAX  ((unsigned __int8)0xff)
+#define _I16_MIN  ((short)(-32767 - 1))
+#define _I16_MAX  ((short)32767)
+#define _UI16_MAX ((unsigned short)0xffff)
+#define _I32_MIN  (-2147483647 - 1)
+#define _I32_MAX  2147483647
+#define _UI32_MAX 0xffffffffu
+#define _I64_MIN  (-9223372036854775807LL - 1)
+#define _I64_MAX  9223372036854775807LL
+#define _UI64_MAX 0xffffffffffffffffULL
+#define FILE_ATTRIBUTE_ENCRYPTED  0x00004000u
+#define FILE_ATTRIBUTE_COMPRESSED 0x00000800u
+#define FILE_ATTRIBUTE_OFFLINE    0x00001000u
+#define FILE_ATTRIBUTE_TEMPORARY  0x00000100u
+#define FILE_ATTRIBUTE_REPARSE_POINT 0x00000400u
+#define FILE_ATTRIBUTE_NOT_CONTENT_INDEXED 0x00002000u

@@ -72,7 +72,7 @@ public:
 	T* operator->() const { return m_p; }
 	void Attach(T* p) { Free(); m_p = p; }
 	T* Detach() { T* p = m_p; m_p = NULL; return p; }
-	void Free() { delete m_p; m_p = NULL; }
+	void Free() throw() { delete m_p; m_p = NULL; }
 	T* m_p;
 };
 

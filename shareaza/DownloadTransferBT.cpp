@@ -161,7 +161,7 @@ CString CDownloadTransferBT::GetStateText(BOOL bLong)
 		if ( ! m_bInterested ) LoadString( str, IDS_STATUS_UNINTERESTED );
 		else if ( m_bChoked ) LoadString( str, IDS_STATUS_CHOKED );
 		else str = CDownloadTransfer::GetStateText( bLong );
-		str.Format( _T("%s (%I64u/%I32u)"), str, m_pClient->m_nRequested, m_oRequested.size() );
+		str.Format( _T("%s (%I64u/%I32u)"), (LPCTSTR)str, m_pClient->m_nRequested, m_oRequested.size() );
 		return str;
 	}
 	return CDownloadTransfer::GetStateText( bLong );

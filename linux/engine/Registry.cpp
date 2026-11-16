@@ -16,6 +16,7 @@
 #include "Registry.h"
 
 #include <map>
+#include <vector>
 #include <mutex>
 #include <string>
 #include <cstdio>
@@ -75,6 +76,17 @@ public:
 			if ( i != m_oSections.end() ) bChanged = i->second.erase( sName ) != 0;
 		}
 		return bChanged ? Save() : true;
+	}
+
+	std::vector< std::pair< std::string, std::string > > Values(const std::string& sSection)
+	{
+		std::lock_guard< std::mutex > l( m_oLock );
+		Load();
+		std::vector< std::pair< std::string, std::string > > v;
+		auto i = m_oSections.find( sSection );
+		if ( i != m_oSections.end() )
+			for ( const auto& e : i->second ) v.emplace_back( e.first, e.second );
+		return v;
 	}
 
 	bool Set(const std::string& sSection, const std::string& sName, const std::string& sValue)
@@ -263,4 +275,11 @@ LONG SHDeleteValue(HKEY hKey, LPCTSTR pszSubKey, LPCTSTR pszValue)
 	if ( hKey != HKEY_CURRENT_USER || ! ToSection( pszSubKey, sSection ) || ! pszValue )
 		return ERROR_ACCESS_DENIED;
 	return CStore::Instance().Remove( sSection, Utf8( pszValue ) ) ? ERROR_SUCCESS : ERROR_ACCESS_DENIED;
+}
+
+// Every value in a section (Linux only: PurgeDeletes walks "Delete" with it).
+void CRegistry_EnumValues(LPCTSTR pszSection, CList< std::pair< CString, CString > >& oValues)
+{
+	for ( const auto& v : CStore::Instance().Values( Utf8( pszSection ) ) )
+		oValues.AddTail( std::make_pair( CString( CA2W( v.first.c_str(), CP_UTF8 ) ), CString( CA2W( v.second.c_str(), CP_UTF8 ) ) ) );
 }

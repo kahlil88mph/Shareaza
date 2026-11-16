@@ -116,15 +116,15 @@ namespace Hashes
 		template<Encoding encoding>
 		StringType toString() const
 		{
-			return isValid()
-					? HashToString< encoding, byteCount >()( &( *this )[ 0 ] )
+			return this->isValid()
+					? HashToString< encoding, DescriptorT::byteCount >()( &( *this )[ 0 ] )
 					: StringType();
 		}
 		//! \brief Generates a hash string using the default encoding for
 		//!        this hash type.
 		StringType toString() const
 		{
-			return toString< encoding >();
+			return toString< DescriptorT::encoding >();
 		}
 		//! \brief Generates a urn string using the default encoding and the
 		//!        specified urn prefix.
@@ -139,9 +139,9 @@ namespace Hashes
 		template<size_t urn>
 		StringType toUrn() const
 		{
-			return isValid()
-					? urns[ urn ].signature
-							+ HashToString< encoding, byteCount >()( &( *this )[ 0 ] )
+			return this->isValid()
+					? DescriptorT::urns[ urn ].signature
+							+ HashToString< DescriptorT::encoding, DescriptorT::byteCount >()( &( *this )[ 0 ] )
 					: StringType();
 		}
 		//! \brief Generates a urn string using the default urn prefix.
@@ -160,17 +160,17 @@ namespace Hashes
 		template<Encoding encoding>
 		bool fromString(const wchar* input)
 		{
-			if ( !HashFromString< encoding, byteCount >()( &( *this )[ 0 ], input ) )
+			if ( !HashFromString< encoding, DescriptorT::byteCount >()( &( *this )[ 0 ], input ) )
 				return false;
-			if ( validate() ) return true;
-			clear();
+			if ( this->validate() ) return true;
+			this->clear();
 			return false;
 		}
 		//! \brief Generates hash from hash string using the default encoding
 		//!        for this hash type.
 		bool fromString(const wchar* input)
 		{
-			return fromString< encoding >( input );
+			return fromString< DescriptorT::encoding >( input );
 		}
 		//! \brief Generates hash from urn using the default encoding
 		//!        for this hash type.
@@ -185,11 +185,11 @@ namespace Hashes
 			size_t inputLen = _tcslen( input );
 			for ( size_t i = 0; i < numUrns; ++i )
 			{
-				if ( inputLen >= urns[ i ].minimumLength
-						&& _tcsnicmp( input, urns[ i ].signature,
-								urns[ i ].signatureLength ) == 0 )
+				if ( inputLen >= DescriptorT::urns[ i ].minimumLength
+						&& _tcsnicmp( input, DescriptorT::urns[ i ].signature,
+								DescriptorT::urns[ i ].signatureLength ) == 0 )
 				{
-					return fromString< encoding >( input + urns[ i ].hashOffset );
+					return fromString< DescriptorT::encoding >( input + DescriptorT::urns[ i ].hashOffset );
 				}
 			}
 			return false;
@@ -198,7 +198,7 @@ namespace Hashes
 		//!        for this hash type.
 		bool fromUrn(const wchar* input)
 		{
-			return fromUrn< encoding >( input );
+			return fromUrn< DescriptorT::encoding >( input );
 		}
 	};
 

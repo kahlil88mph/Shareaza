@@ -31,9 +31,15 @@
 #include "LibraryFolders.h"
 #include "LibraryHistory.h"
 #include "HashDatabase.h"
+#ifdef _WIN32
 #include "Plugins.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndChild.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "WndMain.h"
+#endif // _WIN32
 
 #include "Network.h"
 #include "Download.h"
@@ -50,7 +56,9 @@
 
 #include "Application.h"
 #include "VersionChecker.h"
+#ifdef _WIN32
 #include "DlgFolderScan.h"
+#endif // _WIN32
 #include "Transfers.h"
 
 #ifdef _DEBUG
@@ -1230,8 +1238,10 @@ BOOL CLibraryFile::ThreadScan(DWORD nScanCookie, QWORD nSize, FILETIME* pTime/*,
 
 		m_nUpdateCookie++;
 
+#ifdef _WIN32	// folder scan progress dialog
 		CFolderScanDlg::Update( m_sName,
 			( m_nSize == SIZE_UNKNOWN ) ? 0 : (DWORD)( m_nSize / 1024 ) );
+#endif
 
 		return TRUE;
 	}
@@ -1243,8 +1253,10 @@ BOOL CLibraryFile::ThreadScan(DWORD nScanCookie, QWORD nSize, FILETIME* pTime/*,
 			LibraryBuilder.Add( this );
 		}
 
+#ifdef _WIN32	// folder scan progress dialog
 		CFolderScanDlg::Update( m_sName,
 			( m_nSize == SIZE_UNKNOWN ) ? 0 : (DWORD)( m_nSize / 1024 ) );
+#endif
 
 		return m_bMetadataModified;
 	}
@@ -1386,6 +1398,7 @@ BOOL CLibraryFile::OnVerifyDownload(const CLibraryRecent* pRecent)
 
 	AddAlternateSources( pRecent->m_sSources );
 
+#ifdef _WIN32	// plugins and library windows
 	// Notify library plugins
 	if ( Plugins.OnNewFile( this ) )
 		return TRUE;
@@ -1400,6 +1413,8 @@ BOOL CLibraryFile::OnVerifyDownload(const CLibraryRecent* pRecent)
 				return TRUE;
 		}
 	}
+
+#endif
 
 	// Notify version checker
 	if ( VersionChecker.CheckUpgradeHash( this ) )

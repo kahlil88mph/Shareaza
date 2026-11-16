@@ -221,6 +221,7 @@ public:
 	~CComBSTR() { SysFreeString( m_str ); }
 	CComBSTR& operator=(const CComBSTR& o) { if ( this != &o ) { SysFreeString( m_str ); m_str = o.Copy(); } return *this; }
 	CComBSTR& operator=(LPCOLESTR p) { SysFreeString( m_str ); m_str = p ? SysAllocString( p ) : NULL; return *this; }
+	CComBSTR& operator=(const CStringW& s) { SysFreeString( m_str ); m_str = SysAllocStringLen( s.GetString(), (UINT)s.GetLength() ); return *this; }
 	operator BSTR() const { return m_str; }
 	BSTR* operator&() { return &m_str; }
 	unsigned int Length() const { return SysStringLen( m_str ); }

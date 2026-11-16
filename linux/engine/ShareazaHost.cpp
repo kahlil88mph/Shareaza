@@ -7,6 +7,9 @@
 #include "StdAfx.h"
 #include "Shareaza.h"
 #include "Registry.h"
+#include "Settings.h"
+
+#include <sys/xattr.h>
 
 #include <sys/random.h>
 #include <unistd.h>
@@ -24,6 +27,10 @@ CShareazaApp::CShareazaApp()
 	, m_bLive( false )
 	, m_bClosing( false )
 	, m_bLimitedConnections( false )
+	, m_bIsServer( false )
+	, m_bIsWin2000( false )
+	, m_bIsVistaOrNewer( true )
+	, m_bIs7OrNewer( true )
 	, m_nLastInput( 0 )
 	, m_pPacketWnd( NULL )
 {
@@ -161,12 +168,6 @@ CString GetErrorString(DWORD dwError)
 	return CString( CA2W( strerror( (int)dwError ), CP_UTF8 ) );
 }
 
-// No main window: interface notifications are dropped. A host program
-// (the remote API) observes engine state directly instead.
-BOOL PostMainWndMessage(UINT, WPARAM, LPARAM)
-{
-	return FALSE;
-}
 
 namespace compat {
 	void RandomBytes(void* p, size_t n)
@@ -252,3 +253,60 @@ INT_PTR MsgBox(UINT nIDPrompt, UINT nType, UINT nIDHelp, DWORD* pnDefault, DWORD
 {
 	return MsgBox( (LPCTSTR)LoadString( nIDPrompt ), nType, nIDHelp, pnDefault, nTimer );
 }
+
+// ---------------------------------------------------------------------------
+// CApplication (Application.h): the object Windows hands to COM plugins.
+// Linux has no plugins; objects that offer it to scripts report it missing.
+
+#include "Application.h"
+
+HRESULT CApplication::GetApp(IApplication** pp) throw() { if ( pp ) *pp = NULL; return E_NOTIMPL; }
+HRESULT CApplication::GetUI(IUserInterface** pp) throw() { if ( pp ) *pp = NULL; return E_NOTIMPL; }
+HRESULT CApplication::GetSettings(ISettings** pp) throw() { if ( pp ) *pp = NULL; return E_NOTIMPL; }
+
+// ---------------------------------------------------------------------------
+// Folder GUIDs in extended attributes
+
+namespace { const char* const GUID_XATTR = "user.shareaza.guid"; }
+
+bool LoadGUID(const CString& sFilename, Hashes::Guid& oGUID)
+{
+	if ( ! Settings.Library.UseFolderGUID )
+		return false;
+	Hashes::Guid oTmpGUID;
+	const ssize_t n = getxattr( compat::ToNativePath( sFilename ).c_str(), GUID_XATTR, &*oTmpGUID.begin(), oTmpGUID.byteCount );
+	if ( n != (ssize_t)oTmpGUID.byteCount )
+		return false;
+	oTmpGUID.validate();
+	oGUID = oTmpGUID;
+	return true;
+}
+
+bool SaveGUID(const CString& sFilename, const Hashes::Guid& oGUID)
+{
+	if ( ! Settings.Library.UseFolderGUID )
+		return false;
+	Hashes::Guid oCurrentGUID;
+	if ( LoadGUID( sFilename, oCurrentGUID ) && oCurrentGUID == oGUID )
+		return true;
+	return setxattr( compat::ToNativePath( sFilename ).c_str(), GUID_XATTR, &*oGUID.begin(), oGUID.byteCount, 0 ) == 0;
+}
+
+CString SafeFilename(CString strName, bool bPath)
+{
+	strName.Replace( _T("%20"), _T(" ") );	// restore spaces
+	for ( ;; )
+	{
+		const int nChar = strName.FindOneOf( bPath ? _T("/:*?\"<>|") : _T("\\/:*?\"<>|") );
+		if ( nChar == -1 ) break;
+		strName.SetAt( nChar, _T('_') );
+	}
+	return strName;
+}
+
+// ---------------------------------------------------------------------------
+// Embedded resources: none in the Linux build yet.
+
+bool ResourceRequest(const CString&, CBuffer&, CString&) { return false; }
+CString LoadHTML(HINSTANCE, UINT) { return CString(); }
+CString LoadRichHTML(UINT, CString&, CShareazaFile*) { return CString(); }

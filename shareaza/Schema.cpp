@@ -26,7 +26,9 @@
 #include "SchemaMember.h"
 #include "SchemaChild.h"
 #include "ShellIcons.h"
+#ifdef _WIN32
 #include "CoolInterface.h"
+#endif // _WIN32
 #include "XML.h"
 
 #ifdef _DEBUG
@@ -573,6 +575,7 @@ void CSchema::LoadDescriptorViewContent(const CXMLElement* pElement)
 //////////////////////////////////////////////////////////////////////
 // CSchema load icon
 
+#ifdef _WIN32	// icons for the interface
 BOOL CSchema::LoadIcon()
 {
 	HICON hIcon16 = NULL, hIcon32 = NULL, hIcon48 = NULL;
@@ -600,6 +603,12 @@ BOOL CSchema::LoadIcon()
 
 	return hIcon16 || hIcon32 || hIcon48;
 }
+#else
+BOOL CSchema::LoadIcon()
+{
+	return FALSE;	// Linux: icons belong to the interface
+}
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CSchema contained object helpers

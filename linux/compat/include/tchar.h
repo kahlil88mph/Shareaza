@@ -23,6 +23,9 @@
 #define _tcstol     wcstol
 #define _tcstoul    wcstoul
 #define _tcstoi64   wcstoll
+#define _tstoi64    _ttoi64
+#define _tstoi      _ttoi
+#define _tstol      _ttol
 #define _tcstoui64  wcstoull
 #define _tcstod     wcstod
 #define _tcslwr     _wcslwr
@@ -48,6 +51,7 @@ inline wchar_t* _tcsdec(const wchar_t* start, const wchar_t* p) { return p > sta
 
 inline int _ttoi(const wchar_t* s) { return (int)wcstol( s, NULL, 10 ); }
 inline long long _ttoi64(const wchar_t* s) { return wcstoll( s, NULL, 10 ); }
+inline long _ttol(const wchar_t* s) { return wcstol( s, NULL, 10 ); }
 inline long long _wtoi64(const wchar_t* s) { return wcstoll( s, NULL, 10 ); }
 inline int _wtoi(const wchar_t* s) { return (int)wcstol( s, NULL, 10 ); }
 inline double _tstof(const wchar_t* s) { return wcstod( s, NULL ); }
@@ -83,6 +87,10 @@ template< typename Ch > inline int compat_strcat_s(Ch* d, size_t n, const Ch* s)
 	while ( l < n && d[ l ] ) ++l;
 	return l < n ? compat_strcpy_s( d + l, n - l, s ) : 22;
 }
+inline int compat_strcpy_s(wchar_t* d, size_t n, const wchar_t* s) { return compat_strcpy_s< wchar_t >( d, n, s ); }
+inline int compat_strcpy_s(char* d, size_t n, const char* s) { return compat_strcpy_s< char >( d, n, s ); }
+inline int compat_strncpy_s(wchar_t* d, size_t n, const wchar_t* s, size_t c) { return compat_strncpy_s< wchar_t >( d, n, s, c ); }
+inline int compat_strcat_s(wchar_t* d, size_t n, const wchar_t* s) { return compat_strcat_s< wchar_t >( d, n, s ); }
 #define _tcscpy_s  compat_strcpy_s
 #define wcscpy_s   compat_strcpy_s
 #define strcpy_s   compat_strcpy_s
@@ -102,3 +110,33 @@ int compat_sscanf(const char* buf, const char* fmt, ...);
 inline int gmtime_s(struct tm* r, const time_t* t) { return gmtime_r( t, r ) ? 0 : 22; }
 inline int localtime_s(struct tm* r, const time_t* t) { return localtime_r( t, r ) ? 0 : 22; }
 inline int memcpy_s(void* d, size_t n, const void* s, size_t c) { if ( c > n ) return 34; memcpy( d, s, c ); return 0; }
+
+// shlwapi string helpers
+inline const wchar_t* StrStrIW(const wchar_t* s, const wchar_t* f)
+{
+	if ( ! s || ! f ) return NULL;
+	const size_t n = wcslen( f );
+	for ( ; *s; ++s ) if ( _wcsnicmp( s, f, n ) == 0 ) return s;
+	return n ? NULL : s;
+}
+inline wchar_t* StrStrIW(wchar_t* s, const wchar_t* f) { return const_cast< wchar_t* >( StrStrIW( (const wchar_t*)s, f ) ); }
+inline const wchar_t* StrChrW(const wchar_t* s, wchar_t c) { return s ? wcschr( s, c ) : NULL; }
+inline const wchar_t* StrRChrW(const wchar_t* s, const wchar_t* e, wchar_t c)
+{
+	if ( ! s ) return NULL;
+	const wchar_t* r = NULL;
+	for ( const wchar_t* p = s; *p && ( ! e || p < e ); ++p ) if ( *p == c ) r = p;
+	return r;
+}
+inline const wchar_t* StrChrIW(const wchar_t* s, wchar_t c) { for ( ; s && *s; ++s ) if ( towlower( *s ) == towlower( c ) ) return s; return NULL; }
+inline int StrCmpIW(const wchar_t* a, const wchar_t* b) { return _wcsicmp( a, b ); }
+inline int StrCmpNIW(const wchar_t* a, const wchar_t* b, int n) { return _wcsnicmp( a, b, (size_t)n ); }
+inline int StrCmpW(const wchar_t* a, const wchar_t* b) { return wcscmp( a, b ); }
+#define StrStrI StrStrIW
+#define StrChr StrChrW
+#define StrRChr StrRChrW
+#define StrChrI StrChrIW
+#define StrCmpI StrCmpIW
+#define StrCmpNI StrCmpNIW
+#define StrCmp StrCmpW
+#define _tcsistr_compat StrStrIW

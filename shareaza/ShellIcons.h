@@ -21,6 +21,25 @@
 
 #pragma once
 
+#ifndef _WIN32
+// Linux (linux/engine/ShellIcons.cpp): file types from the freedesktop MIME
+// database; icons belong to the interface, so there are none here.
+class CShellIcons
+{
+public:
+	void	Clear() {}
+	int		Get(LPCTSTR /*pszFile*/, int /*nSize*/) { return -1; }
+	int		Add(HICON /*hIcon*/, int /*nSize*/) { return -1; }
+	HICON	ExtractIcon(int /*nIndex*/, int /*nSize*/) { return NULL; }
+	CString	GetTypeString(LPCTSTR pszFile);
+	CString	GetMIME(LPCTSTR pszType);
+	CString	GetName(LPCTSTR pszType);
+	void	AttachTo(CListCtrl* const /*pList*/, int /*nSize*/) const {}
+	void	AttachTo(CTreeCtrl* const /*pTree*/) const {}
+	BOOL	Draw(CDC*, int, int, int, int, COLORREF = 0, BOOL = FALSE) const { return FALSE; }
+};
+#else
+
 
 class CShellIcons
 {
@@ -59,6 +78,8 @@ private:
 	CShellIcons(const CShellIcons&);
 	CShellIcons& operator=(const CShellIcons&);
 };
+
+#endif // _WIN32
 
 extern CShellIcons ShellIcons;
 

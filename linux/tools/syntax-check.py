@@ -27,11 +27,23 @@ ENGINE = os.path.join(SRC, "shareaza")
 GUI = re.compile(r"^(Ctrl|Wnd|Dlg|Page|Skin|Window|CoolMenu|CoolInterface|LiveList|RichDocument|"
                  r"RichElement|RichView|RichFragment|ImageFile|Flags|ShellIcons|Colors|Plugins|"
                  r"WizardSheet|FontManager|Graph|AutocompleteEdit|ComboListCtrl|Emoticons|"
-                 r"ShareazaDataSource|DDEServer|IEProtocol|Scheduler|Splash)")
+                 r"ShareazaDataSource|DDEServer|IEProtocol|Scheduler|Splash|"
+                 # the Windows application around the engine: setup wizard, plugin
+                 # automation object, chat and menu windows, interface helpers
+                 r"Wizard|Application\.|Shareaza\.cpp|ChatWindows|ComMenu|ComToolbar|FragmentBar|"
+                 r"MetaList|ImageServices|WindowManager|BitziDownloader|FileExecutor|"
+                 # Windows services the Linux build replaces: the registry (linux/engine/
+                 # Registry.cpp), UPnP over COM (miniupnpc), Windows Firewall, AMSI
+                 r"Registry\.cpp|UPnPFinder|UPnPNAT|Firewall|AntiVirus)")
+
+
+HOST = os.path.join(SRC, "linux", "engine")
 
 
 def engine_files():
-    return sorted(f for f in os.listdir(ENGINE) if f.endswith(".cpp") and not GUI.match(f))
+    files = sorted(f for f in os.listdir(ENGINE) if f.endswith(".cpp") and not GUI.match(f))
+    # the Linux host's own sources count too
+    return files + sorted("../linux/engine/" + f for f in os.listdir(HOST) if f.endswith(".cpp"))
 
 
 def flags(build):

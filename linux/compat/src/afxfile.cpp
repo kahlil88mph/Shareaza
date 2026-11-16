@@ -56,9 +56,10 @@ BOOL CreateDirectoryW(LPCWSTR pszPath, LPSECURITY_ATTRIBUTES)
 
 BOOL RemoveDirectoryW(LPCWSTR pszPath) { return pszPath && ::rmdir( compat::ToNativePath( pszPath ).c_str() ) == 0; }
 BOOL DeleteFileW(LPCWSTR pszPath) { return pszPath && ::unlink( compat::ToNativePath( pszPath ).c_str() ) == 0; }
+// As on Windows: fails if the target exists, and moves files across filesystems.
 BOOL MoveFileW(LPCWSTR a, LPCWSTR b)
 {
-	return a && b && ::rename( compat::ToNativePath( a ).c_str(), compat::ToNativePath( b ).c_str() ) == 0;
+	return MoveFileWithProgressW( a, b, NULL, NULL, MOVEFILE_COPY_ALLOWED );
 }
 
 BOOL CopyFileW(LPCWSTR a, LPCWSTR b, BOOL bFailIfExists)
@@ -172,6 +173,7 @@ BOOL CFile::Open(LPCTSTR pszFileName, UINT nOpenFlags, CFileException* pError)
 		}
 		return FALSE;
 	}
+	m_hFile = (HANDLE)(INT_PTR)m_fd;
 	return TRUE;
 }
 
@@ -246,6 +248,7 @@ void CFile::Close()
 		::close( m_fd );
 		m_fd = -1;
 	}
+	m_hFile = hFileNull;
 }
 
 void CFile::Abort()
@@ -789,4 +792,266 @@ LONG CompareFileTime(const FILETIME* a, const FILETIME* b)
 	const ULONGLONG x = ( (ULONGLONG)a->dwHighDateTime << 32 ) | a->dwLowDateTime;
 	const ULONGLONG y = ( (ULONGLONG)b->dwHighDateTime << 32 ) | b->dwLowDateTime;
 	return x < y ? -1 : x > y ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Moves and copies with progress
+
+namespace {
+	// Copy a to b, reporting progress after every chunk. Returns false with
+	// the Windows error set; a cancelled copy removes the partial target.
+	bool CopyWithProgress(const std::string& a, const std::string& b, bool bFailIfExists,
+		LPPROGRESS_ROUTINE pfn, LPVOID pData, LPBOOL pbCancel)
+	{
+		const int in = ::open( a.c_str(), O_RDONLY | O_CLOEXEC );
+		if ( in < 0 ) return Fail( errno );
+		struct stat st;
+		::fstat( in, &st );
+		const int out = ::open( b.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC | ( bFailIfExists ? O_EXCL : O_TRUNC ), st.st_mode & 0777 );
+		if ( out < 0 ) { const int e = errno; ::close( in ); return Fail( e ); }
+		LARGE_INTEGER nTotal, nDone;
+		nTotal.QuadPart = st.st_size;
+		nDone.QuadPart = 0;
+		bool bQuiet = ! pfn, bOk = true;
+		DWORD dwError = 0;
+		if ( ! bQuiet )
+		{
+			const DWORD r = pfn( nTotal, nDone, nTotal, nDone, 1, CALLBACK_STREAM_SWITCH, NULL, NULL, pData );
+			if ( r == PROGRESS_CANCEL || r == PROGRESS_STOP ) { bOk = false; dwError = ERROR_REQUEST_ABORTED; }
+			else if ( r == PROGRESS_QUIET ) bQuiet = true;
+		}
+		std::vector< char > buf( 1 << 20 );
+		while ( bOk )
+		{
+			if ( pbCancel && *pbCancel ) { bOk = false; dwError = ERROR_REQUEST_ABORTED; break; }
+			const ssize_t n = ::read( in, buf.data(), buf.size() );
+			if ( n < 0 ) { if ( errno == EINTR ) continue; bOk = false; dwError = ErrorFromErrno( errno ); break; }
+			if ( n == 0 ) break;
+			for ( ssize_t w = 0; w < n; )
+			{
+				const ssize_t r = ::write( out, buf.data() + w, (size_t)( n - w ) );
+				if ( r < 0 ) { if ( errno == EINTR ) continue; bOk = false; dwError = ErrorFromErrno( errno ); break; }
+				w += r;
+			}
+			if ( ! bOk ) break;
+			nDone.QuadPart += n;
+			if ( ! bQuiet )
+			{
+				const DWORD r = pfn( nTotal, nDone, nTotal, nDone, 1, CALLBACK_CHUNK_FINISHED, NULL, NULL, pData );
+				if ( r == PROGRESS_CANCEL || r == PROGRESS_STOP ) { bOk = false; dwError = ERROR_REQUEST_ABORTED; }
+				else if ( r == PROGRESS_QUIET ) bQuiet = true;
+			}
+		}
+		::close( in );
+		if ( ::close( out ) != 0 && bOk ) { bOk = false; dwError = ErrorFromErrno( errno ); }
+		if ( ! bOk )
+		{
+			::unlink( b.c_str() );
+			SetLastError( dwError );
+			return false;
+		}
+		struct timespec ts[ 2 ] = { st.st_atim, st.st_mtim };	// keep the times, as Windows does
+		::utimensat( AT_FDCWD, b.c_str(), ts, 0 );
+		return true;
+	}
+
+	bool Exists(const std::string& s) { struct stat st; return ::lstat( s.c_str(), &st ) == 0; }
+}
+
+BOOL MoveFileWithProgressW(LPCWSTR pszFrom, LPCWSTR pszTo, LPPROGRESS_ROUTINE pfn, LPVOID pData, DWORD dwFlags)
+{
+	if ( ! pszFrom || ! pszTo ) { SetLastError( ERROR_INVALID_PARAMETER ); return FALSE; }
+	const std::string a = compat::ToNativePath( pszFrom ), b = compat::ToNativePath( pszTo );
+	if ( ! ( dwFlags & MOVEFILE_REPLACE_EXISTING ) && Exists( b ) )
+	{
+		SetLastError( ERROR_ALREADY_EXISTS );
+		return FALSE;
+	}
+	if ( ::rename( a.c_str(), b.c_str() ) == 0 ) return TRUE;
+	if ( errno != EXDEV || ! ( dwFlags & MOVEFILE_COPY_ALLOWED ) ) return Fail( errno );
+	// Another filesystem: copy, then remove the original.
+	if ( ! CopyWithProgress( a, b, false, pfn, pData, NULL ) ) return FALSE;
+	if ( dwFlags & MOVEFILE_WRITE_THROUGH )
+	{
+		const int fd = ::open( b.c_str(), O_RDONLY | O_CLOEXEC );
+		if ( fd >= 0 ) { ::fsync( fd ); ::close( fd ); }
+	}
+	if ( ::unlink( a.c_str() ) != 0 ) return Fail( errno );
+	return TRUE;
+}
+
+BOOL MoveFileExW(LPCWSTR pszFrom, LPCWSTR pszTo, DWORD dwFlags)
+{
+	return MoveFileWithProgressW( pszFrom, pszTo, NULL, NULL, dwFlags );
+}
+
+BOOL CopyFileExW(LPCWSTR pszFrom, LPCWSTR pszTo, LPPROGRESS_ROUTINE pfn, LPVOID pData, LPBOOL pbCancel, DWORD dwCopyFlags)
+{
+	if ( ! pszFrom || ! pszTo ) { SetLastError( ERROR_INVALID_PARAMETER ); return FALSE; }
+	return CopyWithProgress( compat::ToNativePath( pszFrom ), compat::ToNativePath( pszTo ),
+		( dwCopyFlags & COPY_FILE_FAIL_IF_EXISTS ) != 0, pfn, pData, pbCancel ) ? TRUE : FALSE;
+}
+
+// ---------------------------------------------------------------------------
+// FindFirstFile / FindNextFile
+
+#include <dirent.h>
+#include <fnmatch.h>
+#include <sys/statvfs.h>
+
+namespace {
+	class FindObject : public compat::KernelObject
+	{
+	public:
+		FindObject() : m_pDir( NULL ) {}
+		~FindObject() override { if ( m_pDir ) closedir( m_pDir ); }
+		bool IsSignalled() const override { return true; }
+		DIR* m_pDir;
+		std::string m_sDir;		// with trailing '/'
+		std::string m_sPattern;	// UTF-8
+	};
+
+	bool Matches(const std::string& sName, const std::string& sPattern)
+	{
+		if ( sPattern == "*" || sPattern == "*.*" ) return true;	// "*.*" matches names without a dot on Windows
+		return fnmatch( sPattern.c_str(), sName.c_str(), FNM_CASEFOLD | FNM_NOESCAPE ) == 0;
+	}
+
+	bool Fill(FindObject* p, LPWIN32_FIND_DATAW pData)
+	{
+		for ( ;; )
+		{
+			struct dirent* e = readdir( p->m_pDir );
+			if ( ! e ) { SetLastError( ERROR_NO_MORE_FILES ); return false; }
+			const std::string sName( e->d_name );
+			if ( ! Matches( sName, p->m_sPattern ) ) continue;
+			const std::string sPath = p->m_sDir + sName;
+			struct stat st;
+			if ( ::stat( sPath.c_str(), &st ) != 0 && ::lstat( sPath.c_str(), &st ) != 0 ) continue;	// vanished
+			memset( pData, 0, sizeof( *pData ) );
+			pData->dwFileAttributes = AttributesOf( st, sPath );
+			UnixToFileTime( st.st_ctim, &pData->ftCreationTime );
+			UnixToFileTime( st.st_atim, &pData->ftLastAccessTime );
+			UnixToFileTime( st.st_mtim, &pData->ftLastWriteTime );
+			const ULONGLONG nSize = S_ISDIR( st.st_mode ) ? 0 : (ULONGLONG)st.st_size;
+			pData->nFileSizeHigh = (DWORD)( nSize >> 32 );
+			pData->nFileSizeLow = (DWORD)nSize;
+			const CStringW w( CA2W( sName.c_str(), CP_UTF8 ) );
+			wcsncpy( pData->cFileName, w, MAX_PATH - 1 );
+			return true;
+		}
+	}
+}
+
+HANDLE FindFirstFileW(LPCWSTR pszPattern, LPWIN32_FIND_DATAW pData)
+{
+	if ( ! pszPattern || ! pData ) { SetLastError( ERROR_INVALID_PARAMETER ); return INVALID_HANDLE_VALUE; }
+	const std::string sFull = compat::ToNativePath( pszPattern );
+	const size_t nSlash = sFull.rfind( '/' );
+	FindObject* p = new FindObject();
+	p->m_sDir = nSlash == std::string::npos ? std::string( "./" ) : sFull.substr( 0, nSlash + 1 );
+	p->m_sPattern = nSlash == std::string::npos ? sFull : sFull.substr( nSlash + 1 );
+	p->m_pDir = opendir( p->m_sDir.c_str() );
+	if ( ! p->m_pDir )
+	{
+		Fail( errno == ENOENT ? ENOTDIR : errno );	// a missing folder is ERROR_PATH_NOT_FOUND
+		p->Release();
+		return INVALID_HANDLE_VALUE;
+	}
+	if ( ! Fill( p, pData ) )
+	{
+		p->Release();
+		SetLastError( ERROR_FILE_NOT_FOUND );
+		return INVALID_HANDLE_VALUE;
+	}
+	return p;
+}
+
+BOOL FindNextFileW(HANDLE hFind, LPWIN32_FIND_DATAW pData)
+{
+	FindObject* p = dynamic_cast< FindObject* >( compat::FromHandle( hFind ) );
+	if ( ! p || ! pData ) { SetLastError( ERROR_INVALID_HANDLE ); return FALSE; }
+	return Fill( p, pData ) ? TRUE : FALSE;
+}
+
+BOOL FindClose(HANDLE hFind)
+{
+	FindObject* p = dynamic_cast< FindObject* >( compat::FromHandle( hFind ) );
+	if ( ! p ) { SetLastError( ERROR_INVALID_HANDLE ); return FALSE; }
+	p->Release();
+	return TRUE;
+}
+
+BOOL SetFileAttributesW(LPCWSTR pszPath, DWORD dwAttributes)
+{
+	if ( ! pszPath ) return FALSE;
+	const std::string s = compat::ToNativePath( pszPath );
+	struct stat st;
+	if ( ::stat( s.c_str(), &st ) != 0 ) return Fail( errno );
+	mode_t m = st.st_mode & 07777;
+	m = ( dwAttributes & FILE_ATTRIBUTE_READONLY ) ? ( m & ~0222 ) : ( m | S_IWUSR );
+	return ::chmod( s.c_str(), m ) == 0 ? TRUE : Fail( errno );
+}
+
+BOOL GetDiskFreeSpaceExW(LPCWSTR pszPath, PULARGE_INTEGER pFreeToCaller, PULARGE_INTEGER pTotal, PULARGE_INTEGER pFree)
+{
+	struct statvfs v;
+	if ( ::statvfs( pszPath ? compat::ToNativePath( pszPath ).c_str() : ".", &v ) != 0 ) return Fail( errno );
+	if ( pFreeToCaller ) pFreeToCaller->QuadPart = (ULONGLONG)v.f_bavail * v.f_frsize;
+	if ( pTotal ) pTotal->QuadPart = (ULONGLONG)v.f_blocks * v.f_frsize;
+	if ( pFree ) pFree->QuadPart = (ULONGLONG)v.f_bfree * v.f_frsize;
+	return TRUE;
+}
+
+LPWSTR PathFindExtensionW(LPCWSTR pszPath)
+{
+	if ( ! pszPath ) return NULL;
+	LPCWSTR pDot = NULL;
+	LPCWSTR p = pszPath;
+	for ( ; *p; ++p )
+	{
+		if ( *p == L'.' ) pDot = p;
+		else if ( *p == L'\\' || *p == L'/' || *p == L' ' ) pDot = NULL;
+	}
+	return const_cast< LPWSTR >( pDot ? pDot : p );	// the end of the string when there is none
+}
+
+void PathRemoveExtensionW(LPWSTR pszPath)
+{
+	if ( LPWSTR p = PathFindExtensionW( pszPath ) ) *p = 0;
+}
+
+// ---------------------------------------------------------------------------
+// CFile::GetStatus
+
+namespace {
+	BOOL StatusFromStat(const struct stat& st, const std::string& sPath, LPCTSTR pszName, CFileStatus& r)
+	{
+		r.m_ctime = CTime( (__time64_t)st.st_ctime );
+		r.m_mtime = CTime( (__time64_t)st.st_mtime );
+		r.m_atime = CTime( (__time64_t)st.st_atime );
+		r.m_size = S_ISDIR( st.st_mode ) ? 0 : (ULONGLONG)st.st_size;
+		r.m_attribute = (BYTE)AttributesOf( st, sPath );
+		r.m_padding = 0;
+		r.m_szFullName[ 0 ] = 0;
+		if ( pszName ) wcsncpy( r.m_szFullName, pszName, MAX_PATH - 1 );
+		r.m_szFullName[ MAX_PATH - 1 ] = 0;
+		return TRUE;
+	}
+}
+
+BOOL CFile::GetStatus(CFileStatus& rStatus) const
+{
+	struct stat st;
+	if ( m_fd < 0 || ::fstat( m_fd, &st ) != 0 ) return FALSE;
+	return StatusFromStat( st, compat::ToNativePath( m_strFileName ), m_strFileName, rStatus );
+}
+
+BOOL PASCAL CFile::GetStatus(LPCTSTR pszFileName, CFileStatus& rStatus)
+{
+	struct stat st;
+	if ( ! pszFileName ) return FALSE;
+	const std::string s = compat::ToNativePath( pszFileName );
+	if ( ::stat( s.c_str(), &st ) != 0 ) return FALSE;
+	return StatusFromStat( st, s, pszFileName, rStatus );
 }

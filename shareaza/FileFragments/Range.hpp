@@ -107,7 +107,7 @@ template< typename SizeT, class PayloadT >
 struct RangeCompare
 : public std::binary_function< Range< SizeT, PayloadT >, Range< SizeT, PayloadT >, bool >
 {
-	result_type operator()(first_argument_type lhs, second_argument_type rhs) const
+	bool operator()(const Range< SizeT, PayloadT >& lhs, const Range< SizeT, PayloadT >& rhs) const
 	{
 		return lhs.end() <= rhs.begin();
 	}

@@ -354,6 +354,68 @@ public:
 		va_list a; va_start( a, nFormatID ); FormatV( f, a ); va_end( a );
 	}
 
+	// Windows FormatMessage: %1 .. %99 insert arguments by number, with an
+	// optional printf type as %1!d! (default !s!, a string). Each argument is
+	// read once, in number order, so every number up to the highest used
+	// must appear in the format. %% %n %. %! give % newline . !
+	void FormatMessageV(const Ch* pszFormat, va_list* pArgs)
+	{
+		Storage f( pszFormat ? pszFormat : Empty_() );
+		struct Insert { Storage sType; bool bSeen = false; };
+		std::vector< Insert > oInserts;
+		for ( size_t i = 0; i + 1 < f.size(); ++i )
+		{
+			if ( f[ i ] != '%' ) continue;
+			if ( f[ i + 1 ] < '1' || f[ i + 1 ] > '9' ) { ++i; continue; }
+			size_t j = i + 1;
+			unsigned n = 0;
+			while ( j < f.size() && f[ j ] >= '0' && f[ j ] <= '9' && n < 10 ) n = n * 10 + (unsigned)( f[ j++ ] - '0' );
+			Storage sType( 1, (Ch)'s' );
+			if ( j < f.size() && f[ j ] == '!' )
+			{
+				const size_t e = f.find( (Ch)'!', j + 1 );
+				if ( e != Storage::npos ) sType = f.substr( j + 1, e - j - 1 );
+			}
+			if ( oInserts.size() < n ) oInserts.resize( n );
+			if ( n ) { oInserts[ n - 1 ].sType = sType; oInserts[ n - 1 ].bSeen = true; }
+		}
+		std::vector< CStringT > oValues;
+		for ( Insert& x : oInserts )
+		{
+			CStringT v;
+			Storage spec = Storage( 1, (Ch)'%' ) + x.sType;
+			const Ch t = x.sType.empty() ? (Ch)'s' : x.sType.back();
+			const bool b64 = x.sType.find( (Ch)'I' ) != Storage::npos || x.sType.find( (Ch)'l' ) != Storage::npos;
+			if ( t == 's' || t == 'S' ) v.Format( spec.c_str(), va_arg( *pArgs, void* ) );
+			else if ( t == 'f' || t == 'g' || t == 'e' ) v.Format( spec.c_str(), va_arg( *pArgs, double ) );
+			else if ( b64 && x.sType.find( (Ch)'6' ) != Storage::npos ) v.Format( spec.c_str(), va_arg( *pArgs, long long ) );
+			else v.Format( spec.c_str(), va_arg( *pArgs, int ) );
+			oValues.push_back( v );
+		}
+		Storage r;
+		for ( size_t i = 0; i < f.size(); ++i )
+		{
+			if ( f[ i ] != '%' || i + 1 >= f.size() ) { r += f[ i ]; continue; }
+			const Ch c = f[ i + 1 ];
+			if ( c >= '1' && c <= '9' )
+			{
+				size_t j = i + 1;
+				unsigned n = 0;
+				while ( j < f.size() && f[ j ] >= '0' && f[ j ] <= '9' && n < 10 ) n = n * 10 + (unsigned)( f[ j++ ] - '0' );
+				if ( j < f.size() && f[ j ] == '!' ) { const size_t e = f.find( (Ch)'!', j + 1 ); if ( e != Storage::npos ) j = e + 1; }
+				if ( n && n <= oValues.size() ) r += oValues[ n - 1 ].m_s;
+				i = j - 1;
+			}
+			else if ( c == 'n' ) { r += (Ch)'\r'; r += (Ch)'\n'; ++i; }
+			else { r += c; ++i; }	// %% %. %! and anything else
+		}
+		m_s.swap( r );
+	}
+	void FormatMessage(const Ch* pszFormat, ...)
+	{
+		va_list a; va_start( a, pszFormat ); FormatMessageV( pszFormat, &a ); va_end( a );
+	}
+
 	BOOL LoadString(UINT nID)
 	{
 		const wchar_t* p = compat::GetResourceString( nID );
@@ -371,6 +433,8 @@ public:
 	friend CStringT operator+(const Ch* a, const CStringT& b) { CStringT r( a ); r += b; return r; }
 	friend CStringT operator+(const CStringT& a, Ch b) { CStringT r( a ); r += b; return r; }
 	friend CStringT operator+(Ch a, const CStringT& b) { CStringT r( a ); r += b; return r; }
+	friend CStringT operator+(const CStringT& a, const OtherCh* b) { CStringT r( a ); r += CStringT( b ); return r; }
+	friend CStringT operator+(const OtherCh* a, const CStringT& b) { CStringT r( a ); r += b; return r; }
 	friend bool operator==(const CStringT& a, const CStringT& b) { return a.m_s == b.m_s; }
 	friend bool operator==(const CStringT& a, const Ch* b) { return a.Compare( b ) == 0; }
 	friend bool operator==(const Ch* a, const CStringT& b) { return b.Compare( a ) == 0; }
@@ -379,6 +443,8 @@ public:
 	friend bool operator!=(const CStringT& a, const Ch* b) { return a.Compare( b ) != 0; }
 	friend bool operator!=(const Ch* a, const CStringT& b) { return b.Compare( a ) != 0; }
 	friend bool operator!=(const CStringT& a, Ch b) { return ! ( a == b ); }
+	friend bool operator==(const CStringT& a, const OtherCh* b) { return a == CStringT( b ); }
+	friend bool operator!=(const CStringT& a, const OtherCh* b) { return ! ( a == CStringT( b ) ); }
 	friend bool operator<(const CStringT& a, const CStringT& b) { return a.m_s < b.m_s; }
 	friend bool operator<(const CStringT& a, const Ch* b) { return a.Compare( b ) < 0; }
 	friend bool operator>(const CStringT& a, const CStringT& b) { return a.m_s > b.m_s; }

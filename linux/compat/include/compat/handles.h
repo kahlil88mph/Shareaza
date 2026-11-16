@@ -174,3 +174,22 @@ BOOL SetFileTime(HANDLE h, const FILETIME* pCreation, const FILETIME* pLastAcces
 // Only FSCTL_SET_SPARSE, which is a no-op: Linux files are sparse already.
 BOOL DeviceIoControl(HANDLE h, DWORD dwCode, LPVOID, DWORD, LPVOID, DWORD, LPDWORD pnReturned, LPOVERLAPPED);
 LONG CompareFileTime(const FILETIME* a, const FILETIME* b);
+
+// ---------------------------------------------------------------------------
+// Folder change notifications over inotify. The handle is signalled when
+// anything in the folder (and, with bWatchSubtree, below it) changes;
+// FindNextChangeNotification re-arms it.
+
+#define FILE_NOTIFY_CHANGE_FILE_NAME   0x00000001
+#define FILE_NOTIFY_CHANGE_DIR_NAME    0x00000002
+#define FILE_NOTIFY_CHANGE_ATTRIBUTES  0x00000004
+#define FILE_NOTIFY_CHANGE_SIZE        0x00000008
+#define FILE_NOTIFY_CHANGE_LAST_WRITE  0x00000010
+#define FILE_NOTIFY_CHANGE_LAST_ACCESS 0x00000020
+#define FILE_NOTIFY_CHANGE_CREATION    0x00000040
+#define FILE_NOTIFY_CHANGE_SECURITY    0x00000100
+
+HANDLE FindFirstChangeNotificationW(LPCWSTR pszPath, BOOL bWatchSubtree, DWORD dwFilter);
+BOOL FindNextChangeNotification(HANDLE h);
+BOOL FindCloseChangeNotification(HANDLE h);
+#define FindFirstChangeNotification FindFirstChangeNotificationW

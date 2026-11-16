@@ -13,6 +13,9 @@
 
 #include <windows.h>
 
+#define _WINSOCKAPI_	// what Winsock's own header defines; engine headers test it
+#define _WINSOCK2API_
+
 // System socket headers first: the s_addr macro below would break them.
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -23,6 +26,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/ip.h>
 
 typedef unsigned char  u_char;
 typedef unsigned short u_short;
@@ -77,6 +83,7 @@ static_assert( sizeof( SOCKADDR_IN6 ) == sizeof( struct sockaddr_in6 ), "SOCKADD
 #define s6_words u.Word
 
 typedef int SOCKET;
+typedef int* LPINT;
 #define INVALID_SOCKET (-1)
 #define SOCKET_ERROR   (-1)
 
@@ -110,6 +117,7 @@ void WSASetLastError(int nError);
 
 #define IN6ADDR_ANY_INIT { { { 0 } } }
 inline bool IN6_ADDR_EQUAL(const IN6_ADDR* a, const IN6_ADDR* b) { return memcmp( a, b, sizeof( IN6_ADDR ) ) == 0; }
+inline void IN6_SET_ADDR_UNSPECIFIED(IN6_ADDR* a) { memset( a, 0, sizeof( *a ) ); }
 inline bool IN6_IS_ADDR_UNSPECIFIED_W(const IN6_ADDR* a) { static const IN6_ADDR z = {}; return IN6_ADDR_EQUAL( a, &z ); }
 
 // inet_ntoa/inet_addr take Windows IN_ADDR.
@@ -130,3 +138,67 @@ typedef int (CALLBACK *LPCONDITIONPROC)(LPWSABUF lpCallerId, LPWSABUF lpCallerDa
 #define CF_ACCEPT 0x0000
 #define CF_REJECT 0x0001
 typedef void* HINTERNET;
+
+// Address <-> string, with Windows formatting: IPv6 with a port is
+// "[addr]:port", with a scope "addr%scope"; IPv4 is "a.b.c.d:port".
+#define INET_ADDRSTRLEN_W 22
+#define IP6_ADDRESS_STRING_LENGTH 65
+#define IP6_ADDRESS_STRING_BUFFER_LENGTH 65
+typedef struct _WSAPROTOCOL_INFOW* LPWSAPROTOCOL_INFOW;
+typedef LPWSAPROTOCOL_INFOW LPWSAPROTOCOL_INFO;
+INT WSAStringToAddressW(LPWSTR pszAddress, INT nFamily, LPWSAPROTOCOL_INFOW, LPSOCKADDR pAddress, LPINT pnLength);
+INT WSAAddressToStringW(LPSOCKADDR pAddress, DWORD nLength, LPWSAPROTOCOL_INFOW, LPWSTR pszOut, LPDWORD pnOut);
+// Engine code passes an unsigned long for the length (a DWORD on Windows).
+inline INT WSAAddressToStringW(LPSOCKADDR pAddress, DWORD nLength, LPWSAPROTOCOL_INFOW p, LPWSTR pszOut, unsigned long* pnOut)
+{
+	DWORD n = (DWORD)*pnOut;
+	const INT r = WSAAddressToStringW( pAddress, nLength, p, pszOut, &n );
+	*pnOut = n;
+	return r;
+}
+#define WSAStringToAddress WSAStringToAddressW
+#define WSAAddressToString WSAAddressToStringW
+
+// WinINet port constants
+#define INTERNET_DEFAULT_HTTP_PORT  80
+#define INTERNET_DEFAULT_HTTPS_PORT 443
+#define INTERNET_DEFAULT_FTP_PORT   21
+#define INTERNET_INVALID_PORT_NUMBER 0
+
+// The engine also writes the BSD names (in_addr, sockaddr_in) and expects the
+// Windows members (S_un). Every system networking header is parsed above, so
+// from here on these names mean the Windows-layout structs. The layouts are
+// byte-identical (see the static_asserts), so casts to the system types are safe.
+// Windows' IPv6 tests take IN6_ADDR*; glibc's macros would reach into glibc's
+// own struct, so they are replaced.
+#undef IN6_IS_ADDR_UNSPECIFIED
+#undef IN6_IS_ADDR_LOOPBACK
+#undef IN6_IS_ADDR_MULTICAST
+#undef IN6_IS_ADDR_LINKLOCAL
+#undef IN6_IS_ADDR_SITELOCAL
+#undef IN6_IS_ADDR_V4MAPPED
+#undef IN6_IS_ADDR_V4COMPAT
+#undef IN6_ARE_ADDR_EQUAL
+inline bool IN6_IS_ADDR_UNSPECIFIED(const IN6_ADDR* a) { static const IN6_ADDR z = {}; return memcmp( a, &z, 16 ) == 0; }
+inline bool IN6_IS_ADDR_LOOPBACK(const IN6_ADDR* a) { static const IN6_ADDR l = { { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 } } }; return memcmp( a, &l, 16 ) == 0; }
+inline bool IN6_IS_ADDR_MULTICAST(const IN6_ADDR* a) { return a->u.Byte[ 0 ] == 0xff; }
+inline bool IN6_IS_ADDR_LINKLOCAL(const IN6_ADDR* a) { return a->u.Byte[ 0 ] == 0xfe && ( a->u.Byte[ 1 ] & 0xc0 ) == 0x80; }
+inline bool IN6_IS_ADDR_SITELOCAL(const IN6_ADDR* a) { return a->u.Byte[ 0 ] == 0xfe && ( a->u.Byte[ 1 ] & 0xc0 ) == 0xc0; }
+inline bool IN6_IS_ADDR_V4MAPPED(const IN6_ADDR* a)
+{
+	static const BYTE p[ 12 ] = { 0,0,0,0,0,0,0,0,0,0,0xff,0xff };
+	return memcmp( a, p, 12 ) == 0;
+}
+inline bool IN6_IS_ADDR_V4COMPAT(const IN6_ADDR* a)
+{
+	static const BYTE p[ 12 ] = {};
+	return memcmp( a, p, 12 ) == 0 && ! IN6_IS_ADDR_UNSPECIFIED( a ) && ! IN6_IS_ADDR_LOOPBACK( a );
+}
+// As ws2ipdef.h defines it
+inline bool IN6_IS_ADDR_GLOBAL(const IN6_ADDR* a) { const BYTE h = a->u.Byte[ 0 ] & 0xf0; return h != 0 && h != 0xf0; }
+inline bool IN6_ARE_ADDR_EQUAL(const IN6_ADDR* a, const IN6_ADDR* b) { return memcmp( a, b, 16 ) == 0; }
+
+#define in_addr compat_in_addr
+#define in6_addr compat_in6_addr
+#define sockaddr_in compat_sockaddr_in
+#define sockaddr_in6 compat_sockaddr_in6

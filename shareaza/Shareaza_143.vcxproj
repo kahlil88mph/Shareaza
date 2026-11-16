@@ -759,6 +759,7 @@
     <ClInclude Include="Buffer.h" />
     <ClInclude Include="ChatCore.h" />
     <ClInclude Include="ChatSession.h" />
+    <ClInclude Include="ChatTypes.h" />
     <ClInclude Include="ChatWindows.h" />
     <ClInclude Include="CollectionFile.h" />
     <ClInclude Include="ComboListCtrl.h" />

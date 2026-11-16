@@ -21,7 +21,9 @@
 
 #include "StdAfx.h"
 #include "Shareaza.h"
+#ifdef _WIN32
 #include "LiveList.h"
+#endif // _WIN32
 #include "Security.h"
 #include "SecureRule.h"
 #include "ShareazaFile.h"
@@ -473,7 +475,7 @@ CXMLElement* CSecureRule::ToXML()
 		if ( m_nIPv6PrefixLen >= 128 )
 			strValue = IPv6ToString( &m_nIPv6 );
 		else
-			strValue.Format( _T("%s/%i"), IPv6ToString( &m_nIPv6 ), m_nIPv6PrefixLen );
+			strValue.Format( _T("%s/%i"), (LPCTSTR)IPv6ToString( &m_nIPv6 ), m_nIPv6PrefixLen );
 		pXML->AddAttribute( _T("address"), strValue );
 		break;
 	case srContentAny:
@@ -795,6 +797,7 @@ void  CSecureRule::MaskFix()
 	}
 }
 
+#ifdef _WIN32	// a row for the security window
 void CSecureRule::ToList(CLiveList* pLiveList, int nCount, DWORD tNow) const
 {
 	CLiveItem* pItem = pLiveList->Add( (LPVOID)this );
@@ -859,3 +862,4 @@ void CSecureRule::ToList(CLiveList* pLiveList, int nCount, DWORD tNow) const
 	pItem->Format( 4, _T("%u (%u)"), m_nToday, m_nEver );
 	pItem->Set( 5, m_sComment );
 }
+#endif // _WIN32

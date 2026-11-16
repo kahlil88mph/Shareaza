@@ -27,6 +27,7 @@
 #include "Downloads.h"
 #include "Library.h"
 #include "Network.h"
+#include "ShareazaURL.h"
 #include "Transfer.h"
 #include "Transfers.h"
 
@@ -89,158 +90,15 @@ BOOL CURLCopyDlg::OnInitDialog()
 	return TRUE;
 }
 
+// Magnet links are made by the engine (CShareazaURL); the dialog only shows them.
 void CURLCopyDlg::Resolve(CShareazaFile& pFile, CString& sTracker, CString& sWebSeed)
 {
-	// Use contents of .torrent-file instead of file itself
-	CBTInfo pTorrent;
-	if ( pFile.m_sPath.GetLength() &&
-		_tcsicmp( PathFindExtension( pFile.m_sName ), _T(".torrent") ) == 0 &&
-		pTorrent.LoadTorrentFile( pFile.m_sPath + _T("\\") + pFile.m_sName ) )
-	{
-		pFile = pTorrent;
-
-		// Get trackers
-		for ( int i = 0; i < pTorrent.GetTrackerCount(); ++i )
-		{
-			if ( sTracker.GetLength() ) sTracker += _T("&");
-			sTracker += _T("tr=") + URLEncode( pTorrent.GetTrackerAddress( i ) );
-		}
-
-		// Get Web-seeds
-		for ( POSITION pos = pTorrent.m_sURLs.GetHeadPosition(); pos; )
-		{
-			if ( sWebSeed.GetLength() ) sWebSeed += _T("&");
-			sWebSeed += _T("ws=") + URLEncode( pTorrent.m_sURLs.GetNext( pos ) );
-		}
-	}
-
-	if ( pFile.m_oBTH )
-	{
-		CQuickLock oLock( Transfers.m_pSection );
-
-		if ( const CDownload* pDownload = Downloads.FindByBTH( pFile.m_oBTH ) )
-		{
-			// Refill missed hashes
-			if ( ! pFile.m_oSHA1 && pDownload->m_oSHA1 )
-				pFile.m_oSHA1 = pDownload->m_oSHA1;
-			if ( ! pFile.m_oTiger && pDownload->m_oTiger )
-				pFile.m_oTiger = pDownload->m_oTiger;
-			if ( ! pFile.m_oED2K && pDownload->m_oED2K )
-				pFile.m_oED2K = pDownload->m_oED2K;
-			if ( ! pFile.m_oMD5 && pDownload->m_oMD5 )
-				pFile.m_oMD5 = pDownload->m_oMD5;
-			if ( ! pFile.m_nBitrate && pDownload->m_nBitrate )
-				pFile.m_nBitrate = pDownload->m_nBitrate;
-
-			// Get trackers
-			if ( sTracker.IsEmpty() && pDownload->IsTorrent() )
-			{
-				for ( int i = 0; i < pDownload->m_pTorrent.GetTrackerCount(); ++i )
-				{
-					if ( sTracker.GetLength() ) sTracker += _T("&");
-					sTracker += _T("tr=") + URLEncode( pDownload->m_pTorrent.GetTrackerAddress( i ) );
-				}
-			}
-		}
-	}
-			
-	if ( pFile.m_oBTH )
-	{
-		CQuickLock oLock( Library.m_pSection );
-
-		if ( const CLibraryFile* pLibraryFile = LibraryMaps.LookupFileByHash( &pFile ) )
-		{
-			// Refill missed hashes
-			if ( ! pFile.m_oSHA1 && pLibraryFile->m_oSHA1 )
-				pFile.m_oSHA1 = pLibraryFile->m_oSHA1;
-			if ( ! pFile.m_oTiger && pLibraryFile->m_oTiger )
-				pFile.m_oTiger = pLibraryFile->m_oTiger;
-			if ( ! pFile.m_oED2K && pLibraryFile->m_oED2K )
-				pFile.m_oED2K = pLibraryFile->m_oED2K;
-			if ( ! pFile.m_oMD5 && pLibraryFile->m_oMD5 )
-				pFile.m_oMD5 = pLibraryFile->m_oMD5;
-			if ( ! pFile.m_nBitrate && pLibraryFile->m_nBitrate )
-				pFile.m_nBitrate = pLibraryFile->m_nBitrate;
-		}
-	}
+	CShareazaURL::Resolve( pFile, sTracker, sWebSeed );
 }
 
 CString CURLCopyDlg::CreateMagnet(CShareazaFile& pFile)
 {
-	CString strURN, sTracker, sWebSeed;
-
-	Resolve( pFile, sTracker, sWebSeed );
-	
-	if ( pFile.m_oTiger && pFile.m_oSHA1 )
-	{
-		strURN = _T("xt=urn:bitprint:") + pFile.m_oSHA1.toString() + _T('.') + pFile.m_oTiger.toString();
-	}
-	else if ( pFile.m_oSHA1 )
-	{
-		strURN = _T("xt=") + pFile.m_oSHA1.toUrn();
-	}
-	else if ( pFile.m_oTiger )
-	{
-		strURN = _T("xt=") + pFile.m_oTiger.toUrn();
-	}
-
-	if ( pFile.m_oED2K )
-	{
-		if ( strURN.GetLength() ) strURN += _T("&");
-		strURN += _T("xt=") + pFile.m_oED2K.toUrn();
-	}
-
-	if ( pFile.m_oMD5 && ! pFile.m_oTiger && ! pFile.m_oSHA1 && ! pFile.m_oED2K )
-	{
-		if ( strURN.GetLength() ) strURN += _T("&");
-		strURN += _T("xt=") + pFile.m_oMD5.toUrn();
-	}
-
-	if ( pFile.m_oBTH )
-	{
-		if ( strURN.GetLength() ) strURN += _T("&");
-		strURN += _T("xt=") + pFile.m_oBTH.toUrn();
-	}
-
-	CString sMagnet = strURN;
-
-	if ( pFile.m_nSize != 0 && pFile.m_nSize != SIZE_UNKNOWN )
-	{
-		if ( sMagnet.GetLength() ) sMagnet += _T("&");
-		sMagnet.AppendFormat( _T("xl=%I64u"), pFile.m_nSize );
-	}
-
-	if ( pFile.m_sName.GetLength() )
-	{
-		if ( sMagnet.GetLength() ) sMagnet += _T("&");
-		if ( strURN.GetLength() )
-			sMagnet += _T("dn=");
-		else
-			sMagnet += _T("kt=");
-		sMagnet += URLEncode( pFile.m_sName );
-	}
-
-	if ( pFile.m_nBitrate != 0 && pFile.m_nBitrate != SIZE_UNKNOWN )
-	{
-		if ( sMagnet.GetLength() ) sMagnet += _T("&");
-		sMagnet.AppendFormat( _T("br=%I64u"), pFile.m_nBitrate );
-	}
-
-	if ( sTracker.GetLength() )
-	{
-		if ( sMagnet.GetLength() ) sMagnet += _T("&");
-		sMagnet += sTracker;
-	}
-
-	if ( sWebSeed.GetLength() )
-	{
-		if ( sMagnet.GetLength() ) sMagnet += _T("&");
-		sMagnet += sWebSeed;
-	}
-
-	sMagnet = _T("magnet:?") + sMagnet;
-
-	return sMagnet;
+	return CShareazaURL::CreateMagnet( pFile );
 }
 
 void CURLCopyDlg::OnIncludeSelf()

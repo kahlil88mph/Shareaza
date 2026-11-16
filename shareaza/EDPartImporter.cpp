@@ -30,7 +30,9 @@
 #include "DownloadGroups.h"
 #include "DownloadTask.h"
 #include "FragmentedFile.h"
+#ifdef _WIN32
 #include "CtrlText.h"
+#endif // _WIN32
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -381,8 +383,10 @@ BOOL CEDPartImporter::ImportFile(LPCTSTR pszPath, LPCTSTR pszFile)
 
 void CEDPartImporter::Message(UINT nMessageID, ...)
 {
+#ifdef _WIN32
 	CEdit* pCtrl = m_pTextCtrl;
 	if ( pCtrl == NULL ) return;
+#endif
 
 	CString sBuffer, strFormat;
 	LoadString( strFormat, nMessageID );
@@ -392,6 +396,7 @@ void CEDPartImporter::Message(UINT nMessageID, ...)
 	sBuffer.FormatMessageV( strFormat, &pArgs );
 	va_end( pArgs );
 
+#ifdef _WIN32	// progress goes to the import dialog
 	sBuffer += _T( "\r\n" );
 
 	int nLen = pCtrl->GetWindowTextLength();
@@ -399,4 +404,7 @@ void CEDPartImporter::Message(UINT nMessageID, ...)
 	pCtrl->ReplaceSel( sBuffer );
 	nLen += sBuffer.GetLength();
 	pCtrl->SetSel( nLen, nLen );
+#else
+	theApp.Message( MSG_INFO, _T("eMule import: %s"), (LPCTSTR)sBuffer );
+#endif
 }

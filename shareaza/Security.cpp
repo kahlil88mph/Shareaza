@@ -22,7 +22,9 @@
 #include "StdAfx.h"
 #include "Shareaza.h"
 #include "Buffer.h"
+#ifdef _WIN32
 #include "LiveList.h"
+#endif // _WIN32
 #include "Settings.h"
 #include "Security.h"
 #include "ShareazaFile.h"
@@ -1410,6 +1412,7 @@ BOOL CSecurity::IsVendorBlocked(const CString& sVendor) const
 	return FALSE;
 }
 
+#ifdef _WIN32	// rows for the security window
 CLiveList* CSecurity::GetList() const
 {
 	CQuickLock oLock( m_pSection );
@@ -1444,6 +1447,7 @@ CLiveList* CSecurity::GetList() const
 
 	return pLiveList;
 }
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CAdultFilter construction

@@ -75,6 +75,17 @@ int main()
 	Settings.Load();
 	CHECK( Settings.Library.TigerHeight == 64 );
 
+	// Folder GUIDs live in an extended attribute (when the filesystem has them)
+	Hashes::Guid oGUID, oBack;
+	CoCreateGuid( reinterpret_cast< GUID* >( &*oGUID.begin() ) );
+	oGUID.validate();
+	const CString strFolder = compat::ToEnginePath( ( sHome + "/Done" ).c_str() );
+	if ( SaveGUID( strFolder, oGUID ) )
+		CHECK( LoadGUID( strFolder, oBack ) && oBack == oGUID );
+	else
+		printf( "note: no user xattrs on %s; folder GUID check skipped\n", sHome.c_str() );
+	CHECK( ! LoadGUID( compat::ToEnginePath( ( sHome + "/Downloads" ).c_str() ), oBack ) );
+
 	system( ( "rm -rf '" + sHome + "'" ).c_str() );
 	printf( "settings: %d passed, %d failed\n", g_nPassed, g_nFailed );
 	return g_nFailed ? 1 : 0;

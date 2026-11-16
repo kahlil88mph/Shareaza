@@ -32,16 +32,52 @@ BOOL DeleteFileW(LPCWSTR pszPath);
 BOOL MoveFileW(LPCWSTR pszFrom, LPCWSTR pszTo);
 #define PathFileExists PathFileExistsW
 #define PathIsDirectory PathIsDirectoryW
+#define CreateDirectory CreateDirectoryW	// as in the SDK; Shareaza's one-argument helper becomes an overload
 #define RemoveDirectory RemoveDirectoryW
 #define DeleteFile DeleteFileW
 #define MoveFile MoveFileW
 BOOL CopyFileW(LPCWSTR pszFrom, LPCWSTR pszTo, BOOL bFailIfExists);
 #define CopyFile CopyFileW
+
+// Moves and copies with progress callbacks (finished downloads use these to
+// reach the downloads folder, possibly on another filesystem).
+typedef DWORD (CALLBACK *LPPROGRESS_ROUTINE)(LARGE_INTEGER TotalFileSize, LARGE_INTEGER TotalBytesTransferred,
+	LARGE_INTEGER StreamSize, LARGE_INTEGER StreamBytesTransferred, DWORD dwStreamNumber, DWORD dwCallbackReason,
+	HANDLE hSourceFile, HANDLE hDestinationFile, LPVOID lpData);
+#define PROGRESS_CONTINUE 0
+#define PROGRESS_CANCEL   1
+#define PROGRESS_STOP     2
+#define PROGRESS_QUIET    3
+#define CALLBACK_CHUNK_FINISHED 0x00000000
+#define CALLBACK_STREAM_SWITCH  0x00000001
+#define MOVEFILE_REPLACE_EXISTING 0x00000001
+#define MOVEFILE_COPY_ALLOWED     0x00000002
+#define MOVEFILE_DELAY_UNTIL_REBOOT 0x00000004
+#define MOVEFILE_WRITE_THROUGH    0x00000008
+#define COPY_FILE_FAIL_IF_EXISTS  0x00000001
+#define ERROR_REQUEST_ABORTED     1235u
+BOOL MoveFileExW(LPCWSTR pszFrom, LPCWSTR pszTo, DWORD dwFlags);
+BOOL MoveFileWithProgressW(LPCWSTR pszFrom, LPCWSTR pszTo, LPPROGRESS_ROUTINE pfnProgress, LPVOID pData, DWORD dwFlags);
+BOOL CopyFileExW(LPCWSTR pszFrom, LPCWSTR pszTo, LPPROGRESS_ROUTINE pfnProgress, LPVOID pData, LPBOOL pbCancel, DWORD dwCopyFlags);
+#define MoveFileEx MoveFileExW
+#define MoveFileWithProgress MoveFileWithProgressW
+#define CopyFileEx CopyFileExW
 // Absolute, normalised path in the engine's form ("a\\..\\b" -> "b").
 DWORD GetFullPathNameW(LPCWSTR pszFileName, DWORD nBufferLength, LPWSTR pszBuffer, LPWSTR* ppFilePart);
 #define GetFullPathName GetFullPathNameW
 LPWSTR PathFindFileNameW(LPCWSTR pszPath);
 #define PathFindFileName PathFindFileNameW
+
+struct CFileStatus
+{
+	CTime m_ctime;		// creation (inode change on Linux)
+	CTime m_mtime;		// last modification
+	CTime m_atime;		// last access
+	ULONGLONG m_size;
+	BYTE m_attribute;
+	BYTE m_padding;
+	TCHAR m_szFullName[ MAX_PATH ];
+};
 
 class CFile : public CObject
 {
@@ -57,8 +93,8 @@ public:
 	enum SeekPosition { begin = 0x0, current = 0x1, end = 0x2 };
 	static const HANDLE hFileNull;
 
-	CFile() : m_fd( -1 ) {}
-	CFile(LPCTSTR pszFileName, UINT nOpenFlags) : m_fd( -1 )
+	CFile() : m_hFile( hFileNull ), m_fd( -1 ) {}
+	CFile(LPCTSTR pszFileName, UINT nOpenFlags) : m_hFile( hFileNull ), m_fd( -1 )
 	{
 		CFileException* e = new CFileException();
 		if ( ! Open( pszFileName, nOpenFlags, e ) ) throw e;
@@ -80,10 +116,13 @@ public:
 	virtual void Abort();
 	CString GetFilePath() const { return m_strFileName; }
 	CString GetFileName() const;
+	BOOL GetStatus(CFileStatus& rStatus) const;
+	static BOOL PASCAL GetStatus(LPCTSTR pszFileName, CFileStatus& rStatus);
 	int GetDescriptor() const { return m_fd; }
 	operator HANDLE() const { return m_fd < 0 ? INVALID_HANDLE_VALUE : (HANDLE)(INT_PTR)m_fd; }
 
 	CString m_strFileName;
+	HANDLE m_hFile;	// as in MFC: hFileNull when closed
 protected:
 	int m_fd;
 private:
@@ -163,3 +202,38 @@ private:
 	CArchive(const CArchive&);
 	CArchive& operator=(const CArchive&);
 };
+
+// ---------------------------------------------------------------------------
+// Directory listing (FindFirstFile and friends) over opendir/fnmatch.
+// Patterns use Windows wildcards (* and ?), matched case-insensitively as on
+// Windows. "." and ".." are reported, as Windows does.
+
+typedef struct _WIN32_FIND_DATAW {
+	DWORD    dwFileAttributes;
+	FILETIME ftCreationTime;
+	FILETIME ftLastAccessTime;
+	FILETIME ftLastWriteTime;
+	DWORD    nFileSizeHigh;
+	DWORD    nFileSizeLow;
+	DWORD    dwReserved0;
+	DWORD    dwReserved1;
+	WCHAR    cFileName[ MAX_PATH ];
+	WCHAR    cAlternateFileName[ 14 ];
+} WIN32_FIND_DATAW, *LPWIN32_FIND_DATAW, WIN32_FIND_DATA, *LPWIN32_FIND_DATA;
+
+HANDLE FindFirstFileW(LPCWSTR pszPattern, LPWIN32_FIND_DATAW pData);
+BOOL FindNextFileW(HANDLE hFind, LPWIN32_FIND_DATAW pData);
+BOOL FindClose(HANDLE hFind);
+#define FindFirstFile FindFirstFileW
+#define FindNextFile FindNextFileW
+
+BOOL SetFileAttributesW(LPCWSTR pszPath, DWORD dwAttributes);	// FILE_ATTRIBUTE_READONLY only
+#define SetFileAttributes SetFileAttributesW
+BOOL GetDiskFreeSpaceExW(LPCWSTR pszPath, PULARGE_INTEGER pFreeToCaller, PULARGE_INTEGER pTotal, PULARGE_INTEGER pFree);
+#define GetDiskFreeSpaceEx GetDiskFreeSpaceExW
+
+// shlwapi path helpers on the engine's '\\' paths
+LPWSTR PathFindExtensionW(LPCWSTR pszPath);
+void PathRemoveExtensionW(LPWSTR pszPath);
+#define PathFindExtension PathFindExtensionW
+#define PathRemoveExtension PathRemoveExtensionW

@@ -27,7 +27,9 @@
 #include "AlbumFolder.h"
 #include "Application.h"
 #include "CollectionFile.h"
+#ifdef _WIN32
 #include "DlgHelp.h"
+#endif // _WIN32
 #include "GProfile.h"
 #include "Settings.h"
 #include "Library.h"
@@ -36,8 +38,12 @@
 #include "SchemaCache.h"
 #include "SharedFile.h"
 #include "SharedFolder.h"
+#ifdef _WIN32
 #include "ShellIcons.h"
+#endif // _WIN32
+#ifdef _WIN32
 #include "Skin.h"
+#endif // _WIN32
 #include "XML.h"
 
 #ifdef _DEBUG
@@ -265,6 +271,7 @@ CLibraryFolder* CLibraryFolders::AddFolder(LPCTSTR pszPath, BOOL bShared)
 //////////////////////////////////////////////////////////////////////
 // CLibraryFolders add a shared folder to a List Control
 
+#ifdef _WIN32	// folder picker filling a list control
 bool CLibraryFolders::AddSharedFolder(CListCtrl& oList)
 {
 	// Store the last path selected
@@ -354,6 +361,7 @@ bool CLibraryFolders::AddSharedFolder(CListCtrl& oList)
 	// Return success
 	return true;
 }
+#endif // _WIN32
 
 //////////////////////////////////////////////////////////////////////
 // CLibraryFolders remove a root physical folder

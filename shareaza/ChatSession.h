@@ -22,7 +22,12 @@
 #pragma once
 
 #include "Connection.h"
+#include "ChatTypes.h"
+#ifdef _WIN32
 #include "WndPrivateChat.h"
+#else
+class CPrivateChatWnd;	// the chat window (Windows interface)
+#endif
 
 class CDCPacket;
 class CDCClient;
