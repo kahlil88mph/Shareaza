@@ -15,6 +15,7 @@
 #include <compat/afxcore.h>
 #include <compat/atlcoll.h>
 #include <compat/com.h>
+#include <compat/ole.h>
 #include <compat/afxfile.h>
 
 #include <cmath>

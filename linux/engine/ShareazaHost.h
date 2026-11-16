@@ -13,6 +13,7 @@
 #pragma once
 
 #include "resource.h"
+#include "ComObject.h"
 
 #include <functional>
 

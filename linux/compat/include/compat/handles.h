@@ -37,6 +37,7 @@
 #define THREAD_PRIORITY_TIME_CRITICAL 15
 #define DUPLICATE_SAME_ACCESS 0x00000002u
 
+typedef LONG* PLONG;
 typedef struct _SECURITY_ATTRIBUTES {
 	DWORD  nLength;
 	LPVOID lpSecurityDescriptor;
@@ -109,3 +110,67 @@ int GetThreadPriority(HANDLE hThread);
 BOOL SwitchToThread();
 BOOL TerminateThread(HANDLE hThread, DWORD dwExitCode);
 HANDLE GetCurrentThread();
+
+// ---------------------------------------------------------------------------
+// Files behind HANDLEs (CreateFile and friends), over POSIX descriptors.
+// Synchronous only: OVERLAPPED is accepted and ignored except for its offset.
+
+#define GENERIC_READ    0x80000000u
+#define GENERIC_WRITE   0x40000000u
+#define GENERIC_ALL     0x10000000u
+#define FILE_SHARE_READ   0x00000001u
+#define FILE_SHARE_WRITE  0x00000002u
+#define FILE_SHARE_DELETE 0x00000004u
+#define CREATE_NEW        1u
+#define CREATE_ALWAYS     2u
+#define OPEN_EXISTING     3u
+#define OPEN_ALWAYS       4u
+#define TRUNCATE_EXISTING 5u
+#define FILE_FLAG_WRITE_THROUGH     0x80000000u
+#define FILE_FLAG_OVERLAPPED        0x40000000u
+#define FILE_FLAG_NO_BUFFERING      0x20000000u
+#define FILE_FLAG_RANDOM_ACCESS     0x10000000u
+#define FILE_FLAG_SEQUENTIAL_SCAN   0x08000000u
+#define FILE_FLAG_DELETE_ON_CLOSE   0x04000000u
+#define FILE_FLAG_BACKUP_SEMANTICS  0x02000000u
+#define FILE_BEGIN   0u
+#define FILE_CURRENT 1u
+#define FILE_END     2u
+#define INVALID_SET_FILE_POINTER 0xFFFFFFFFu
+#define FSCTL_SET_SPARSE 0x000900C4u
+
+typedef struct _OVERLAPPED {
+	ULONG_PTR Internal, InternalHigh;
+	union { struct { DWORD Offset; DWORD OffsetHigh; }; PVOID Pointer; };
+	HANDLE hEvent;
+} OVERLAPPED, *LPOVERLAPPED;
+
+namespace compat {
+class FileObject : public KernelObject
+{
+public:
+	explicit FileObject(int fd) : m_fd( fd ) {}
+	~FileObject() override;
+	bool IsSignalled() const override { return true; }
+	int m_fd;
+};
+// The descriptor behind a file HANDLE, or -1.
+int FileDescriptor(HANDLE h);
+}
+
+HANDLE CreateFileW(LPCWSTR pszFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES,
+	DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+#define CreateFile CreateFileW
+BOOL ReadFile(HANDLE h, LPVOID pBuffer, DWORD nToRead, LPDWORD pnRead, LPOVERLAPPED pOverlapped);
+BOOL WriteFile(HANDLE h, LPCVOID pBuffer, DWORD nToWrite, LPDWORD pnWritten, LPOVERLAPPED pOverlapped);
+DWORD SetFilePointer(HANDLE h, LONG lDistance, PLONG plDistanceHigh, DWORD dwMoveMethod);
+BOOL SetFilePointerEx(HANDLE h, LARGE_INTEGER liDistance, PLARGE_INTEGER pliNew, DWORD dwMoveMethod);
+DWORD GetFileSize(HANDLE h, LPDWORD pnSizeHigh);
+BOOL GetFileSizeEx(HANDLE h, PLARGE_INTEGER pSize);
+BOOL SetEndOfFile(HANDLE h);
+BOOL FlushFileBuffers(HANDLE h);
+BOOL GetFileTime(HANDLE h, LPFILETIME pCreation, LPFILETIME pLastAccess, LPFILETIME pLastWrite);
+BOOL SetFileTime(HANDLE h, const FILETIME* pCreation, const FILETIME* pLastAccess, const FILETIME* pLastWrite);
+// Only FSCTL_SET_SPARSE, which is a no-op: Linux files are sparse already.
+BOOL DeviceIoControl(HANDLE h, DWORD dwCode, LPVOID, DWORD, LPVOID, DWORD, LPDWORD pnReturned, LPOVERLAPPED);
+LONG CompareFileTime(const FILETIME* a, const FILETIME* b);

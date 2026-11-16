@@ -40,7 +40,11 @@
 #define _istpunct   iswpunct
 #define _vsntprintf _vsnwprintf
 #define _sntprintf  _snwprintf
-#define _tcsinc(p)  ((p) + 1)
+// As in the CRT, these take a const pointer and return a mutable one (the
+// engine writes through it into a CString's buffer).
+inline wchar_t* _tcsinc(const wchar_t* p) { return const_cast< wchar_t* >( p + 1 ); }
+inline wchar_t* _tcsninc(const wchar_t* p, size_t n) { return const_cast< wchar_t* >( p + n ); }
+inline wchar_t* _tcsdec(const wchar_t* start, const wchar_t* p) { return p > start ? const_cast< wchar_t* >( p - 1 ) : NULL; }
 
 inline int _ttoi(const wchar_t* s) { return (int)wcstol( s, NULL, 10 ); }
 inline long long _ttoi64(const wchar_t* s) { return wcstoll( s, NULL, 10 ); }

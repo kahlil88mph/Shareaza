@@ -33,6 +33,7 @@ cross-check the hashes.
 | Strings, Buffer, zlib wrapper | `Strings.cpp`, `Buffer.cpp`, `ZLibWarp.cpp`, `StdAfx.cpp` | |
 | Packets | `Packet.cpp`; G2 wire format from `G2Packet.cpp` | `test-g2packet`: byte-exact encoding, UTF-8 strings (including non-BMP), 1/2/3-byte lengths, stream parsing, malformed input |
 | Settings | `Settings.cpp` over an INI store in place of the registry | `test-settings`: defaults, folder creation, save, reload, clamping |
+| COM object model | `ComObject.cpp`, `XML.cpp`, `XMLCOM.cpp`; `ShareazaOM.h` generated from `Shareaza.idl` | `test-com`: the engine's XML tree used only through its IDL interfaces (interface maps, QueryInterface between interface parts, COM identity, reference counts, BSTR, VARIANT, SAFEARRAY) |
 | Compatibility layer | `compat/` | `test-compat`, `test-afx`: printf/scanf semantics, code pages, CString, collections, exceptions, locks, events, threads, multi-object waits |
 
 All tests also pass under AddressSanitizer and UndefinedBehaviorSanitizer
@@ -53,8 +54,12 @@ splitting them before their dependencies are ported:
   - `afxfile.h`: CFile and a CArchive that is byte-compatible with MFC.
   - `atlcoll.h`: ATL collections.
   - `com.h`: minimal IUnknown, CComPtr, CAutoPtr, SEH shim.
+  - `ole.h`: OLE Automation. Covers BSTR, VARIANT, SAFEARRAY and IDispatch; MFC's CCmdTarget interface maps (`BEGIN_INTERFACE_MAP`, `INTERFACE_PART`, `METHOD_PROLOGUE`); and ATL's CComBSTR, CComVariant and CComQIPtr.
+  - `handles.h` also covers Win32 file handles (`CreateFile`, `ReadFile`, `SetFilePointer` and so on) over POSIX descriptors.
 - `engine/ShareazaHost.*`: the headless `CShareazaApp`. On Linux, `Shareaza.h` includes this in place of the MFC application class.
 - `engine/Registry.cpp`: `CRegistry` over `$XDG_CONFIG_HOME/shareaza/Shareaza.ini`.
+- `tools/idl2h.py`: generates `ShareazaOM.h` and the IIDs from `shareaza/Shareaza.idl` at build time (MIDL does this on Windows).
+- `tools/syntax-check.py`: compiles every engine file against the layer and reports what stops the rest.
 
 ## Decisions
 
@@ -65,6 +70,7 @@ splitting them before their dependencies are ported:
 - **Settings:** stored in an INI file, with sections and names that match the Windows registry.
 - **SEH:** `__try`/`__except` become `try`/`catch(...)`. Hardware faults are no longer caught.
 - **Out of memory:** `operator new` throws `std::bad_alloc`; on Windows it returns NULL.
+- **COM:** objects work in process through their C++ interfaces, with MFC's interface maps reproduced. There is no COM runtime or type library, so late-bound `IDispatch::Invoke` returns `E_NOTIMPL`, `CoCreateInstance` fails, and there are no plugins. `OLECHAR` is `wchar_t`, so BSTRs are UTF-32; they never leave the process.
 
 ## Pre-existing upstream bugs found (worth fixing for Windows too)
 
@@ -76,14 +82,16 @@ splitting them before their dependencies are ported:
 
 ## Remaining work
 
-A syntax check of all 176 engine files against the current layer: 21 compile
-cleanly. The other 155 mostly stop on one of these:
+Run `linux/tools/syntax-check.py` for current numbers. As of the COM
+milestone, 32 of the 163 engine files compile cleanly. The others mostly stop
+on one of these:
 
-1. **COM object model:** `ComObject.h`, `ShareazaFile.h`, `XMLCOM.h`, `Application.h`. This gates 84 files, because the library and download classes derive from COM-automation bases. Plan: a compile-only COM shim, with the automation code guarded.
-2. **Interface coupling:** about 30 engine files include window, skin or control headers. Each needs the interface call moved behind the host (as `theApp.Message` and `PostMainWndMessage` already are).
+1. **Interface types in engine headers:** this gates about 60 files. Two cases:
+   - Signatures that mention MFC window classes (`LibraryFolders.h` takes a `CListCtrl*`, for example). Forward declarations are enough for these.
+   - Engine code that includes dialog or skin headers (`DlgSkinDialog.h`, `SkinWindow.h`, `CoolMenu.h`) or the drag-and-drop source (`ShareazaDataSource.h`). That interface call has to move behind the host, as `theApp.Message` and `PostMainWndMessage` already have.
+2. **More MSVC template leniency:** `FileFragments/Range.hpp` and `List.hpp` use dependent-base names in declarations.
 3. **Network I/O:** `WSAEventSelect`, `WSAAsyncGetHostByName` and `WSAAccept` conditions need replacing with an epoll/poll event layer and a resolver thread. This is the largest and riskiest part.
 4. **TLS:** SChannel (`TlsClient`, `TlsVerify`, `TlsPolicy`) needs moving to OpenSSL.
 5. **HTTP client:** WinINet needs moving to libcurl.
-6. **UPnP:** Windows UPnP COM can be replaced by the bundled miniupnpc.
-7. **File I/O:** sparse and overlapped files in the transfer and fragment code.
-8. **Metadata plugins (COM):** to be replaced by native libraries later. Until then, the library works without metadata extraction.
+6. **UPnP and firewall:** Windows UPnP COM can be replaced by the bundled miniupnpc. The Windows Firewall code can go.
+7. **Metadata plugins (COM):** to be replaced by native libraries later. Until then, the library works without metadata extraction.

@@ -258,6 +258,14 @@ typedef struct tagPOINT { LONG x, y; } POINT, *LPPOINT;
 typedef struct tagSIZE { LONG cx, cy; } SIZE, *LPSIZE;
 typedef struct tagRECT { LONG left, top, right, bottom; } RECT, *LPRECT;
 typedef const RECT* LPCRECT;
+typedef struct tagMSG {
+	HWND   hwnd;
+	UINT   message;
+	WPARAM wParam;
+	LPARAM lParam;
+	DWORD  time;
+	POINT  pt;
+} MSG, *PMSG, *LPMSG;
 
 // ---------------------------------------------------------------------------
 // Memory

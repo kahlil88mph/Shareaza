@@ -5,6 +5,7 @@
 //
 
 #include <compat/afxfile.h>
+#include <compat/handles.h>
 
 #include <cerrno>
 #include <fcntl.h>
@@ -581,4 +582,211 @@ DWORD GetFileAttributes(LPCWSTR pszFileName)
 	if ( ! pszFileName || ! StatPath( pszFileName, st, sPath ) )
 		return INVALID_FILE_ATTRIBUTES;
 	return AttributesOf( st, sPath );
+}
+
+// ---------------------------------------------------------------------------
+// File HANDLEs
+
+namespace compat {
+FileObject::~FileObject() { if ( m_fd >= 0 ) ::close( m_fd ); }
+
+int FileDescriptor(HANDLE h)
+{
+	FileObject* p = dynamic_cast< FileObject* >( FromHandle( h ) );
+	return p ? p->m_fd : -1;
+}
+}
+
+namespace {
+	DWORD ErrorFromErrno(int e)
+	{
+		switch ( e )
+		{
+		case ENOENT: return ERROR_FILE_NOT_FOUND;
+		case ENOTDIR: return ERROR_PATH_NOT_FOUND;
+		case EACCES: case EPERM: case EROFS: case EISDIR: return ERROR_ACCESS_DENIED;
+		case EEXIST: return ERROR_FILE_EXISTS;
+		case EBADF: return ERROR_INVALID_HANDLE;
+		case ENOMEM: return ERROR_NOT_ENOUGH_MEMORY;
+		case EINVAL: return ERROR_INVALID_PARAMETER;
+		case ENOSPC: return 112u;	// ERROR_DISK_FULL
+		default: return (DWORD)e;
+		}
+	}
+	bool Fail(int e) { SetLastError( ErrorFromErrno( e ) ); return false; }
+}
+
+HANDLE CreateFileW(LPCWSTR pszFileName, DWORD dwAccess, DWORD /*dwShareMode*/, LPSECURITY_ATTRIBUTES,
+	DWORD dwDisposition, DWORD dwFlags, HANDLE)
+{
+	if ( ! pszFileName ) { SetLastError( ERROR_INVALID_PARAMETER ); return INVALID_HANDLE_VALUE; }
+	const std::string sPath = compat::ToNativePath( pszFileName );
+	int flags = O_CLOEXEC;
+	const bool bRead = ( dwAccess & ( GENERIC_READ | GENERIC_ALL ) ) != 0;
+	const bool bWrite = ( dwAccess & ( GENERIC_WRITE | GENERIC_ALL ) ) != 0;
+	flags |= ( bRead && bWrite ) ? O_RDWR : bWrite ? O_WRONLY : O_RDONLY;
+	switch ( dwDisposition )
+	{
+	case CREATE_NEW: flags |= O_CREAT | O_EXCL; break;
+	case CREATE_ALWAYS: flags |= O_CREAT | O_TRUNC; break;
+	case OPEN_ALWAYS: flags |= O_CREAT; break;
+	case TRUNCATE_EXISTING: flags |= O_TRUNC; break;
+	default: break;
+	}
+	struct stat st;
+	const bool bExisted = ::stat( sPath.c_str(), &st ) == 0;
+	// FILE_FLAG_BACKUP_SEMANTICS lets Windows open folders; O_RDONLY does that here.
+	if ( bExisted && S_ISDIR( st.st_mode ) && ! ( dwFlags & FILE_FLAG_BACKUP_SEMANTICS ) )
+	{
+		SetLastError( ERROR_ACCESS_DENIED );
+		return INVALID_HANDLE_VALUE;
+	}
+	const int fd = ::open( sPath.c_str(), flags, 0644 );
+	if ( fd < 0 ) { Fail( errno ); return INVALID_HANDLE_VALUE; }
+	if ( dwFlags & FILE_FLAG_DELETE_ON_CLOSE ) ::unlink( sPath.c_str() );
+	// Windows reports ERROR_ALREADY_EXISTS on success for these two.
+	SetLastError( ( bExisted && ( dwDisposition == CREATE_ALWAYS || dwDisposition == OPEN_ALWAYS ) ) ? ERROR_ALREADY_EXISTS : ERROR_SUCCESS );
+	return new compat::FileObject( fd );
+}
+
+BOOL ReadFile(HANDLE h, LPVOID pBuffer, DWORD nToRead, LPDWORD pnRead, LPOVERLAPPED pOverlapped)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( pnRead ) *pnRead = 0;
+	if ( fd < 0 ) return Fail( EBADF );
+	BYTE* p = static_cast< BYTE* >( pBuffer );
+	off_t nOffset = pOverlapped ? (off_t)( ( (ULONGLONG)pOverlapped->OffsetHigh << 32 ) | pOverlapped->Offset ) : -1;
+	DWORD nDone = 0;
+	while ( nDone < nToRead )
+	{
+		const ssize_t n = nOffset >= 0 ? ::pread( fd, p + nDone, nToRead - nDone, nOffset + nDone ) : ::read( fd, p + nDone, nToRead - nDone );
+		if ( n < 0 ) { if ( errno == EINTR ) continue; return Fail( errno ); }
+		if ( n == 0 ) break;	// end of file: success with fewer bytes, as on Windows
+		nDone += (DWORD)n;
+	}
+	if ( pnRead ) *pnRead = nDone;
+	return TRUE;
+}
+
+BOOL WriteFile(HANDLE h, LPCVOID pBuffer, DWORD nToWrite, LPDWORD pnWritten, LPOVERLAPPED pOverlapped)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( pnWritten ) *pnWritten = 0;
+	if ( fd < 0 ) return Fail( EBADF );
+	const BYTE* p = static_cast< const BYTE* >( pBuffer );
+	off_t nOffset = pOverlapped ? (off_t)( ( (ULONGLONG)pOverlapped->OffsetHigh << 32 ) | pOverlapped->Offset ) : -1;
+	DWORD nDone = 0;
+	while ( nDone < nToWrite )
+	{
+		const ssize_t n = nOffset >= 0 ? ::pwrite( fd, p + nDone, nToWrite - nDone, nOffset + nDone ) : ::write( fd, p + nDone, nToWrite - nDone );
+		if ( n < 0 ) { if ( errno == EINTR ) continue; if ( pnWritten ) *pnWritten = nDone; return Fail( errno ); }
+		nDone += (DWORD)n;
+	}
+	if ( pnWritten ) *pnWritten = nDone;
+	return TRUE;
+}
+
+BOOL SetFilePointerEx(HANDLE h, LARGE_INTEGER liDistance, PLARGE_INTEGER pliNew, DWORD dwMoveMethod)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	const off_t n = ::lseek( fd, (off_t)liDistance.QuadPart, dwMoveMethod == FILE_BEGIN ? SEEK_SET : dwMoveMethod == FILE_CURRENT ? SEEK_CUR : SEEK_END );
+	if ( n < 0 ) return Fail( errno );
+	if ( pliNew ) pliNew->QuadPart = n;
+	return TRUE;
+}
+
+DWORD SetFilePointer(HANDLE h, LONG lDistance, PLONG plDistanceHigh, DWORD dwMoveMethod)
+{
+	LARGE_INTEGER li, liNew;
+	// Without a high part the distance is a signed 32-bit value.
+	li.QuadPart = plDistanceHigh ? (LONGLONG)( ( (ULONGLONG)(DWORD)*plDistanceHigh << 32 ) | (DWORD)lDistance ) : (LONGLONG)lDistance;
+	if ( ! SetFilePointerEx( h, li, &liNew, dwMoveMethod ) ) return INVALID_SET_FILE_POINTER;
+	if ( plDistanceHigh ) *plDistanceHigh = liNew.HighPart;
+	SetLastError( ERROR_SUCCESS );	// callers tell a real 0xFFFFFFFF offset from failure this way
+	return liNew.LowPart;
+}
+
+BOOL GetFileSizeEx(HANDLE h, PLARGE_INTEGER pSize)
+{
+	struct stat st;
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	if ( ::fstat( fd, &st ) != 0 ) return Fail( errno );
+	pSize->QuadPart = st.st_size;
+	return TRUE;
+}
+
+DWORD GetFileSize(HANDLE h, LPDWORD pnSizeHigh)
+{
+	LARGE_INTEGER li;
+	if ( ! GetFileSizeEx( h, &li ) ) return INVALID_FILE_SIZE;
+	if ( pnSizeHigh ) *pnSizeHigh = (DWORD)li.HighPart;
+	SetLastError( ERROR_SUCCESS );
+	return li.LowPart;
+}
+
+BOOL SetEndOfFile(HANDLE h)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	const off_t n = ::lseek( fd, 0, SEEK_CUR );
+	if ( n < 0 || ::ftruncate( fd, n ) != 0 ) return Fail( errno );
+	return TRUE;
+}
+
+BOOL FlushFileBuffers(HANDLE h)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	return ::fsync( fd ) == 0 ? TRUE : Fail( errno );
+}
+
+namespace {
+	struct timespec ToTimespec(const FILETIME* ft)
+	{
+		const ULONGLONG n = ( ( (ULONGLONG)ft->dwHighDateTime << 32 ) | ft->dwLowDateTime ) - 116444736000000000ull;
+		struct timespec ts = { (time_t)( n / 10000000u ), (long)( n % 10000000u ) * 100 };
+		return ts;
+	}
+}
+
+BOOL GetFileTime(HANDLE h, LPFILETIME pCreation, LPFILETIME pLastAccess, LPFILETIME pLastWrite)
+{
+	struct stat st;
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	if ( ::fstat( fd, &st ) != 0 ) return Fail( errno );
+	if ( pCreation ) UnixToFileTime( st.st_ctim, pCreation );
+	if ( pLastAccess ) UnixToFileTime( st.st_atim, pLastAccess );
+	if ( pLastWrite ) UnixToFileTime( st.st_mtim, pLastWrite );
+	return TRUE;
+}
+
+BOOL SetFileTime(HANDLE h, const FILETIME*, const FILETIME* pLastAccess, const FILETIME* pLastWrite)
+{
+	const int fd = compat::FileDescriptor( h );
+	if ( fd < 0 ) return Fail( EBADF );
+	struct timespec ts[ 2 ];
+	ts[ 0 ].tv_nsec = UTIME_OMIT;
+	ts[ 1 ].tv_nsec = UTIME_OMIT;
+	if ( pLastAccess ) ts[ 0 ] = ToTimespec( pLastAccess );
+	if ( pLastWrite ) ts[ 1 ] = ToTimespec( pLastWrite );
+	return ::futimens( fd, ts ) == 0 ? TRUE : Fail( errno );	// creation time cannot be set on Linux
+}
+
+BOOL DeviceIoControl(HANDLE h, DWORD dwCode, LPVOID, DWORD, LPVOID, DWORD, LPDWORD pnReturned, LPOVERLAPPED)
+{
+	if ( pnReturned ) *pnReturned = 0;
+	if ( compat::FileDescriptor( h ) < 0 ) return Fail( EBADF );
+	if ( dwCode == FSCTL_SET_SPARSE ) return TRUE;
+	SetLastError( ERROR_INVALID_PARAMETER );
+	return FALSE;
+}
+
+LONG CompareFileTime(const FILETIME* a, const FILETIME* b)
+{
+	const ULONGLONG x = ( (ULONGLONG)a->dwHighDateTime << 32 ) | a->dwLowDateTime;
+	const ULONGLONG y = ( (ULONGLONG)b->dwHighDateTime << 32 ) | b->dwLowDateTime;
+	return x < y ? -1 : x > y ? 1 : 0;
 }

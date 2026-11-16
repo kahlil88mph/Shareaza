@@ -28,6 +28,7 @@ add_library(shareaza-compat STATIC
 	compat/src/cstring.cpp
 	compat/src/afxfile.cpp
 	compat/src/handles.cpp
+	compat/src/ole.cpp
 )
 target_include_directories(shareaza-compat PUBLIC compat/include)
 target_compile_options(shareaza-compat PUBLIC ${SHAREAZA_COMPAT_WARNINGS}
@@ -56,6 +57,8 @@ set(ENGINE_SOURCES
 	Settings.cpp
 	StdAfx.cpp
 	Strings.cpp
+	XML.cpp
+	XMLCOM.cpp
 	ZLibWarp.cpp
 	Hashes/HashDescriptors.cpp
 	Hashes/HashStringConversion.cpp
@@ -108,7 +111,20 @@ configure_file(${SCHEMA_URIS}.tmp ${SCHEMA_URIS} COPYONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SHAREAZA_SRC}/shareaza/Schema.cpp)
 list(APPEND ENGINE_SOURCES ${SCHEMA_URIS})
 
+# ShareazaOM.h and its IIDs from Shareaza.idl (MIDL does this on Windows).
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(OM_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${OM_DIR})
+add_custom_command(
+	OUTPUT ${OM_DIR}/ShareazaOM.h ${OM_DIR}/ShareazaOM_i.cpp
+	COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/idl2h.py
+		${SHAREAZA_SRC}/shareaza/Shareaza.idl ${OM_DIR}/ShareazaOM.h ${OM_DIR}/ShareazaOM_i.cpp
+	DEPENDS ${SHAREAZA_SRC}/shareaza/Shareaza.idl ${CMAKE_CURRENT_SOURCE_DIR}/tools/idl2h.py
+	COMMENT "Generating ShareazaOM.h from Shareaza.idl")
+list(APPEND ENGINE_SOURCES ${OM_DIR}/ShareazaOM_i.cpp ${SHAREAZA_SRC}/shareaza/ComObject.cpp)
+
 add_library(shareaza-engine STATIC ${ENGINE_SOURCES})
+target_include_directories(shareaza-engine PUBLIC ${OM_DIR})
 target_include_directories(shareaza-engine PUBLIC ${SHAREAZA_SRC}/shareaza)
 target_compile_definitions(shareaza-engine PUBLIC NDEBUG)
 # The engine was written for MSVC, which parses templates late (no two-phase
@@ -118,7 +134,8 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	message(FATAL_ERROR "The engine needs Clang: cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang")
 endif()
 target_compile_options(shareaza-engine PUBLIC -fdelayed-template-parsing -fms-extensions
-	-Wno-deprecated-declarations -Wno-microsoft -Wno-invalid-token-paste -Wno-writable-strings)
+	-Wno-deprecated-declarations -Wno-microsoft -Wno-invalid-token-paste -Wno-writable-strings
+	-Wno-invalid-offsetof)	# MFC's interface maps use offsetof on non-standard-layout classes, as on Windows
 target_link_libraries(shareaza-engine PUBLIC hashlib shareaza-compat ZLIB::ZLIB BZip2::BZip2)
 
 # --- tests ------------------------------------------------------------------
@@ -139,6 +156,10 @@ add_test(NAME g2packet COMMAND test-g2packet)
 add_executable(test-settings tests/test_settings.cpp)
 target_link_libraries(test-settings PRIVATE shareaza-engine)
 add_test(NAME settings COMMAND test-settings)
+
+add_executable(test-com tests/test_com.cpp)
+target_link_libraries(test-com PRIVATE shareaza-engine)
+add_test(NAME com COMMAND test-com)
 
 add_executable(test-hashlib tests/test_hashlib.cpp)
 target_link_libraries(test-hashlib PRIVATE hashlib)
