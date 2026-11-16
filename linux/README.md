@@ -34,9 +34,10 @@ cross-check the hashes.
 | Packets | `Packet.cpp`; G2 wire format from `G2Packet.cpp` | `test-g2packet`: byte-exact encoding, UTF-8 strings (including non-BMP), 1/2/3-byte lengths, stream parsing, malformed input |
 | Settings | `Settings.cpp` over an INI store in place of the registry | `test-settings`: defaults, folder creation, save, reload, clamping |
 | COM object model | `ComObject.cpp`, `XML.cpp`, `XMLCOM.cpp`; `ShareazaOM.h` generated from `Shareaza.idl` | `test-com`: the engine's XML tree used only through its IDL interfaces (interface maps, QueryInterface between interface parts, COM identity, reference counts, BSTR, VARIANT, SAFEARRAY) |
-| Compatibility layer | `compat/` | `test-compat`, `test-afx`: printf/scanf semantics, FormatMessage, code pages, CString, MFC and ATL collections, exceptions, locks, events, threads, multi-object waits |
-| Files and folders | `compat/` (Win32 file API) | `test-files`: file handles (64-bit seeks, short reads, positioned I/O, file times), moves and copies with progress and cancel, directory listing with Windows wildcards, change notifications (inotify), disk space |
-| Strings and file types | `Strings.cpp`, `engine/ShellIcons.cpp` | `test-strings`: IPv4/IPv6 address strings in Windows format, URL and UTF-8 helpers, lower-casing beyond ASCII, MIME types |
+| Compatibility layer | `compat/` | `test-compat`, `test-afx`: printf/scanf semantics, FormatMessage (CString's and `::FormatMessage` from a string), FoldString accent splitting, code pages, CString, MFC and ATL collections, exceptions, locks, events, threads, multi-object waits |
+| Files and folders | `compat/` (Win32 file API) | `test-files`: file handles (64-bit seeks, short reads, positioned I/O, file times), moves and copies with progress and cancel, directory listing with Windows wildcards, change notifications (inotify), disk space, CTime in archives |
+| Strings and file types | `Strings.cpp`, `engine/ShellIcons.cpp` | `test-strings`: IPv4/IPv6 address strings in Windows format, URL and UTF-8 helpers, lower-casing beyond ASCII, MIME types, list column sorting (addresses, sizes, counts, text) |
+| Searches, host browsing, private chat | `engine/SearchSessions.cpp`, `engine/BrowseSessions.cpp`, `engine/PrivateChats.cpp`, with `MatchObjects`, `QuerySearch`, `ManagedSearch`, `HostBrowser`, `ChatSession`, `Remote` | Compile only. Linking them pulls in the network layer, so their tests come with it |
 
 All tests also pass under AddressSanitizer and UndefinedBehaviorSanitizer
 (with `-fno-sanitize=alignment`; see below).
@@ -64,6 +65,7 @@ splitting them before their dependencies are ported:
 - `tools/syntax-check.py`: compiles every engine file against the layer and reports what stops the rest.
 - `tools/guard.py`: wraps Windows-interface code in an upstream file in `#ifdef _WIN32`, the same way every time.
 - `engine/ShellIcons.cpp`, `engine/ImageFile.cpp`: Linux versions of two interface classes that also carry engine data. `ShellIcons` provides MIME types, from the freedesktop MIME database. `CImageFile` keeps the archive format but has no image decoders.
+- `engine/SearchSessions.*`, `engine/BrowseSessions.*`, `engine/PrivateChats.*`: searches, host browses and private chats without windows (see Decisions).
 - `engine/ShareazaHostFiles.cpp`, `engine/ShareazaHostMessages.cpp`: the file helpers from `Shareaza.cpp` (`OnRename`, `DeleteFileEx` with the freedesktop Trash, delayed deletes) and `PostMainWndMessage`. These join the build once transfers are ported.
 
 ## Decisions
@@ -76,6 +78,13 @@ splitting them before their dependencies are ported:
 - **SEH:** `__try`/`__except` become `try`/`catch(...)`. Hardware faults are no longer caught.
 - **Out of memory:** `operator new` throws `std::bad_alloc`; on Windows it returns NULL.
 - **The interface:** engine code that only shows something (dialogs, progress windows, list rows, colours) is wrapped in `#ifdef _WIN32`. Linux gets a no-op, a log message, or a "nobody to ask" answer. Engine logic that lived in a dialog moves into the engine: magnet links now come from `CShareazaURL::CreateMagnet`, and the chat data types from `ChatTypes.h`.
+- **Searches, browses and chats without windows:** on Windows each lives in its window (`CSearchWnd`, `CBrowseHostWnd`, `CPrivateChatWnd`), which holds the results or the conversation. On Linux they live in headless objects with the same calls: `CSearchSession` in `SearchSessions`, `CBrowseSession` in `BrowseSessions`, `CPrivateChat` in `PrivateChats`. The engine headers name them after the windows on Linux (`typedef CSearchSession CSearchWnd`), so `CQuerySearch::OpenWindow`, `CHostBrowser` and `CChatSession` work unchanged. They follow the windows' logic: the same result limits, "search more", stop, the spam and adult filters for chat. `Network.cpp` hands query hits and pushed connections to them, and the web remote's search pages read them.
+  - Searches are saved to `Data/Searches.dat` in the Windows format, so a Windows search history loads.
+  - There is no search monitor or hit monitor; hits for no search are dropped.
+  - A private chat opens as soon as it connects (Windows posts `WM_OPENCHAT` to the main window first).
+  - An eDonkey captcha request arrives without its picture until images can be decoded.
+  - Browses are not saved between runs (Windows saves the browse windows with their folder trees).
+- **Logic moved out of interface classes:** list column sorting (`CLiveList::SortProc`) is now `CompareColumnText` in `Strings.cpp`. The download and upload list filters (`CDownloadsCtrl::IsFiltered`, `IsExpandable`, the `CUploadsCtrl` queue walks) are now in `CDownloads` and `CUploadQueues`, with their `DLF_`/`ULF_` masks. The search columns (`MATCH_COL_*`) are in `MatchObjects.h`, and the chat window messages in `ChatTypes.h`. The interface classes forward to them, so Windows behaves as before.
 - **Interface messages:** `PostMainWndMessage` has no window to post to. With no hook installed (`theApp.m_fnPostMessage`), it frees heap payloads (a `new CString`, a `new CShareazaURL`, a path array) rather than leaking them.
 - **Folder IDs:** shared folders keep their GUID in the extended attribute `user.shareaza.guid`. On Windows it's the NTFS stream `folder:Shareaza.GUID`.
 - **Change notifications:** these use inotify, with a watch on every folder in the tree and on each new folder as it appears.
@@ -92,15 +101,15 @@ splitting them before their dependencies are ported:
 
 ## Remaining work
 
-Run `linux/tools/syntax-check.py` for current numbers. After the interface
-milestone, 102 of the 147 engine files compile cleanly; the others stop on:
+Run `linux/tools/syntax-check.py` for current numbers. After the search,
+browse and chat milestone, 113 of the 150 engine files compile cleanly; the
+others stop on:
 
-1. **Search, host browsing and chat without windows:** results live in the search and browse windows (`CSearchWnd`, `CBrowseHostWnd`), and the web remote reads them from there. Chat messages go to the chat windows. A headless engine needs its own lists of searches, browses and chats, which the windows on Windows and the remote on Linux both use.
-   - Files affected: `MatchObjects`, `QuerySearch`, `Network`, `Remote`, `HostBrowser`, `ChatSession`, `ChatCore`.
-2. **Network I/O:** `WSAEventSelect`, `WSAAsyncGetHostByName` and `WSAAccept` conditions need replacing with an epoll/poll event layer and a resolver thread. This is the largest and riskiest part.
-   - Files affected: `Handshakes`, `Handshake`, `Datagrams`, `Connection`, the neighbour and transfer classes.
-3. **TLS:** SChannel and wincrypt (`TlsClient`, `TlsVerify`, `TlsPolicy`) need moving to OpenSSL.
-4. **HTTP client:** WinINet (`HttpRequest`, `DiscoveryServices`, `VersionChecker`) needs moving to libcurl.
-5. **UPnP:** Windows UPnP COM is replaced by the bundled miniupnpc. Windows Firewall and AMSI integration are dropped.
-6. **Resources:** the string table and embedded HTML from `Shareaza.rc`. `LoadString` returns nothing yet, so log messages built from string IDs are empty.
-7. **Metadata plugins (COM):** to be replaced by native libraries later. Until then, the built-in extractors still run, and nothing decodes images (no thumbnails or previews).
+1. **Network I/O:** `WSAEventSelect`, `WSAAsyncGetHostByName` and `WSAAccept` conditions need replacing with an epoll/poll event layer and a resolver thread. This is the largest and riskiest part.
+   - Files affected: `Handshakes`, `Handshake`, `Datagrams`, `Connection`, `ChatCore`, `Network`, the neighbour and transfer classes.
+   - With it, the search, browse and chat sessions can link and get tests, and the host needs a main loop (the Windows message loop and window timers): `SearchSessions.OnRun()` and saving searches.
+2. **TLS:** SChannel and wincrypt (`TlsClient`, `TlsVerify`, `TlsPolicy`) need moving to OpenSSL.
+3. **HTTP client:** WinINet (`HttpRequest`, `DiscoveryServices`, `VersionChecker`) needs moving to libcurl.
+4. **UPnP:** Windows UPnP COM is replaced by the bundled miniupnpc. Windows Firewall and AMSI integration are dropped.
+5. **Resources:** the string table and embedded HTML from `Shareaza.rc`. `LoadString` returns nothing yet, so log messages built from string IDs are empty.
+6. **Metadata plugins (COM):** to be replaced by native libraries later. Until then, the built-in extractors still run, and nothing decodes images (no thumbnails or previews).

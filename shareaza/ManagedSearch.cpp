@@ -472,7 +472,7 @@ BOOL CManagedSearch::ExecuteSources(const DWORD tTicks, const DWORD tSecs)
 					{
 						theApp.Message( MSG_DEBUG | MSG_FACILITY_SEARCH,
 							_T("Querying source %s"),
-							bIPv6 ? IPv6ToString( &pSource->m_pAddressIPv6 )
+							bIPv6 ? (LPCTSTR)IPv6ToString( &pSource->m_pAddressIPv6 )
 							: (LPCTSTR)CString( inet_ntoa( pSource->m_pAddress ) ) );
 
 						if ( pSource->IsIPv6Source() )
@@ -716,7 +716,7 @@ BOOL CManagedSearch::ExecuteG2Mesh(const DWORD /*tTicks*/, const DWORD tSecs)
 
 						theApp.Message( MSG_DEBUG | MSG_FACILITY_SEARCH,
 							_T("Requesting query key from %s through %s"),
-							pHost->IsIPv6Host() ? IPv6ToString( &pHost->m_pAddressIPv6 )
+							pHost->IsIPv6Host() ? (LPCTSTR)IPv6ToString( &pHost->m_pAddressIPv6 )
 								: (LPCTSTR)CString( inet_ntoa( pHost->m_pAddress ) ),
 							(LPCTSTR)CString( inet_ntoa( pReceiver->sin_addr ) ) );
 						return TRUE;
@@ -749,14 +749,14 @@ BOOL CManagedSearch::ExecuteG2Mesh(const DWORD /*tTicks*/, const DWORD tSecs)
 						{
 							theApp.Message( MSG_DEBUG | MSG_FACILITY_SEARCH,
 								_T("Requesting query key from %s"),
-								pHost->IsIPv6Host() ? IPv6ToString( &pHost->m_pAddressIPv6 )
+								pHost->IsIPv6Host() ? (LPCTSTR)IPv6ToString( &pHost->m_pAddressIPv6 )
 								: (LPCTSTR)CString( inet_ntoa( pHost->m_pAddress ) ) );
 						}
 						else
 						{
 							theApp.Message( MSG_DEBUG | MSG_FACILITY_SEARCH,
 								_T("Requesting query key from %s for %s"),
-								pHost->IsIPv6Host() ? IPv6ToString( &pHost->m_pAddressIPv6 )
+								pHost->IsIPv6Host() ? (LPCTSTR)IPv6ToString( &pHost->m_pAddressIPv6 )
 								: (LPCTSTR)CString( inet_ntoa( pHost->m_pAddress ) ),
 								(LPCTSTR)CString( inet_ntoa( pReceiver->sin_addr ) ) );
 						}

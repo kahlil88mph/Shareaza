@@ -31,19 +31,19 @@
 #include "SchemaCache.h"
 #include "Security.h"
 #include "ShellIcons.h"
-#include "CoolInterface.h"
 #include "VendorCache.h"
 #include "Downloads.h"
 #include "Transfers.h"
 #include "XML.h"
 #include "Download.h"
-#ifdef _WIN32
-#include "CtrlMatch.h"
-#endif // _WIN32
-#include "LiveList.h"
 #include "ResultFilters.h"
+#ifdef _WIN32
+#include "CoolInterface.h"
+#include "CtrlMatch.h"
+#include "LiveList.h"
 #include "WndSearch.h"
 #include "CtrlSearchDetailPanel.h"
+#endif // _WIN32
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -53,6 +53,19 @@ static char THIS_FILE[]=__FILE__;
 
 #define MAP_SIZE		256
 #define BUFFER_GROW		64
+
+// The search these matches answer, if they belong to one (a host browse has none).
+static CQuerySearchPtr GetOwnerSearch(const CMatchList* pList)
+{
+	CBaseMatchWnd* pParent = pList->GetParent();
+#ifdef _WIN32
+	if ( pParent && pParent->IsKindOf( RUNTIME_CLASS( CSearchWnd ) ) )
+		return static_cast< CSearchWnd* >( pParent )->GetLastSearch();
+	return CQuerySearchPtr();
+#else
+	return pParent ? pParent->GetLastSearch() : CQuerySearchPtr();
+#endif // _WIN32
+}
 
 
 //////////////////////////////////////////////////////////////////////
@@ -254,7 +267,7 @@ void CMatchList::AddHits(const CQueryHit* pHits, const CQuerySearch* pFilter)
 				pHit->m_bExactMatch = TRUE;
 
 			pHit->m_bMatched = pFilter->Match( pHit->m_sName,
-				( pHit->m_pSchema ? pHit->m_pSchema->GetURI() : NULL ), pHit->m_pXML, pHit );
+				( pHit->m_pSchema ? pHit->m_pSchema->GetURI() : CString() ), pHit->m_pXML, pHit );
 
 			// ToDo: Change to pHit->m_bMatched when we will be able to get folder name
 			// from hits. Raza sends hits if folder name matches the search keywords too.
@@ -704,14 +717,10 @@ CString CMatchList::CreateRegExpFilter(const CString& strPattern)
 
 	if ( ! strPattern.IsEmpty() )
 	{
-		CBaseMatchWnd* pParent = GetParent();
-		if ( pParent && pParent->IsKindOf( RUNTIME_CLASS( CSearchWnd ) ) )
+		CQuerySearchPtr pQuery = GetOwnerSearch( this );
+		if ( pQuery )
 		{
-			CQuerySearchPtr pQuery = static_cast< CSearchWnd* >( pParent )->GetLastSearch();
-			if ( pQuery )
-			{
-				m_sRegexPattern = pQuery->BuildRegExp( strPattern );
-			}
+			m_sRegexPattern = pQuery->BuildRegExp( strPattern );
 		}
 	}
 
@@ -833,13 +842,9 @@ BOOL CMatchList::FilterHit(CQueryHit* pHit)
 	else
 		pHit->m_sSpeed.Empty();
 
-	CBaseMatchWnd* pParent = GetParent();
-	if ( pParent && pParent->IsKindOf( RUNTIME_CLASS( CSearchWnd ) ) )
-	{
-		CQuerySearchPtr pQuery = static_cast< CSearchWnd* >( pParent )->GetLastSearch();
-		if ( pQuery && Security.IsDenied( pQuery, pHit->m_sName ) )
-			return FALSE;
-	}
+	CQuerySearchPtr pQuery = GetOwnerSearch( this );
+	if ( pQuery && Security.IsDenied( pQuery, pHit->m_sName ) )
+		return FALSE;
 
 	if ( m_bRegExp && ! m_sRegexPattern.IsEmpty() )
 	{
@@ -1960,7 +1965,7 @@ int CMatchFile::Compare(CMatchFile* pFile) const
 			{
 				pszA = m_pColumns[ m_pList->m_nSortColumn - MATCH_COL_MAX ];
 				pszB = pFile->m_pColumns[ m_pList->m_nSortColumn - MATCH_COL_MAX ];
-				x = CLiveList::SortProc( pszA, pszB );
+				x = CompareColumnText( pszA, pszB );
 			}
 		}
 	}
@@ -2152,6 +2157,8 @@ CSchemaPtr CMatchFile::GetHitsSchema() const
 	return pSchema;
 }
 
+#ifdef _WIN32
+// For the detail panel and tooltip
 CSchemaPtr CMatchFile::AddHitsToMetadata(CMetaList& oMetadata) const
 {
 	CSchemaPtr pSchema = GetHitsSchema();
@@ -2169,6 +2176,7 @@ CSchemaPtr CMatchFile::AddHitsToMetadata(CMetaList& oMetadata) const
 	}
 	return pSchema;
 }
+#endif // _WIN32
 
 BOOL CMatchFile::AddHitsToPreviewURLs(CList<CString>& oPreviewURLs) const
 {
@@ -2202,6 +2210,8 @@ BOOL CMatchFile::AddHitsToPreviewURLs(CList<CString>& oPreviewURLs) const
 	return bCanPreview;
 }
 
+#ifdef _WIN32
+// For the detail panel
 void CMatchFile::AddHitsToReviews(CList < Review* >& oReviews) const
 {
 	for ( CQueryHit* pHit = m_pHits ; pHit ; pHit = pHit->m_pNext )
@@ -2213,6 +2223,7 @@ void CMatchFile::AddHitsToReviews(CList < Review* >& oReviews) const
 		}
 	}
 }
+#endif // _WIN32
 
 void CMatchFile::SetBogus( BOOL bBogus )
 {
@@ -2349,6 +2360,8 @@ void CMatchFile::GetUser(CString& sUser) const
 	}
 }
 
+#ifdef _WIN32
+// The tooltip status line, coloured with the interface's colours
 void CMatchFile::GetStatusTip( CString& sStatus, COLORREF& crStatus)
 {
 	sStatus.Empty();
@@ -2417,6 +2430,7 @@ void CMatchFile::GetStatusTip( CString& sStatus, COLORREF& crStatus)
 		crStatus = CoolInterface.m_crTextAlert ;
 	}
 }
+#endif // _WIN32
 
 TRISTATE CMatchFile::GetLibraryStatus()
 {

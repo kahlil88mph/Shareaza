@@ -477,140 +477,16 @@ bool CLiveList::Less(const CLiveItemPtr& _Left, const CLiveItemPtr& _Right, int 
 }
 
 //////////////////////////////////////////////////////////////////////
-// Parse IP addresses like "xxx.xxx.xxx.xxx\0" and "xxx.xxx.xxx.xxx/"
-// (IP stored in host byte order)
-
-inline BOOL atoip (LPCTSTR c, DWORD& addr)
-{
-	DWORD digit = 0;
-	DWORD num = 0;
-	addr = 0;
-	for ( ; ; c++ )
-	{
-		if ( *c >= _T('0') && *c <= _T('9') )
-		{
-			num = num * 10 + ( *c - _T('0') );
-			if ( num > 255 )
-				break;				// too big octet
-		}
-		else if ( *c == _T('.') || *c == _T('\0') || *c == _T('/') )
-		{
-			addr = ( addr << 8 ) | num;
-			num = 0;
-			digit++;
-			if ( digit == 4 )
-			{
-				if ( *c == _T('.') )
-					break;			// too long
-		else
-					return TRUE;	// it's IP!
-			}
-			if ( *c == _T('\0') || *c == _T('/') )
-				break;				// too short
-		}
-		else
-			break;
-	}
-	addr = 0xffffffff;
-	return FALSE;					// invalid symbol
-}
+// CLiveList column text comparison (in Strings.cpp, shared with the engine)
 
 int CLiveList::SortProc(LPCTSTR sA, LPCTSTR sB, BOOL bNumeric)
 {
-	DWORD ipA, ipB;
-	if ( atoip( sA, ipA ) && atoip( sB, ipB ) )
-	{
-		TCHAR* pA = (TCHAR*)_tcschr( sA, '/' );
-		TCHAR* pB = (TCHAR*)_tcschr( sB, '/' );
-		DWORD maskA = 0xffffffff, maskB = 0xffffffff;
-		if ( ( ! pA || atoip( pA + 1, maskA ) ) && 
-			 ( ! pB || atoip( pB + 1, maskB ) ) )
-		{
-			QWORD nA = ( ( (QWORD) ipA ) << 32 ) | maskA;
-			QWORD nB = ( ( (QWORD) ipB ) << 32 ) | maskB;
-			if ( nA < nB )
-				return -1;
-			else if ( nA > nB )
-				return 1;
-			else
-				return 0;
-		}
-	}
-	if ( bNumeric || ( IsNumber( sA ) && IsNumber( sB ) ) )
-		{
-		double nA = 0, nB = 0;
-
-			if ( *sA == '(' || *sA == 'Q' )
-				_stscanf( sA+1, _T("%lf"), &nA );
-			else
-				_stscanf( sA, _T("%lf (%lf)"), &nA, &nA );
-
-			if ( *sB == '(' || *sB == 'Q' )
-				_stscanf( sB+1, _T("%lf"), &nB );
-			else
-				_stscanf( sB, _T("%lf (%lf)"), &nB, &nB );
-
-			if ( _tcsstr( sA, _T(" K") ) ) nA *= 1024;
-			if ( _tcsstr( sA, _T(" M") ) ) nA *= 1024*1024;
-			if ( _tcsstr( sA, _T(" G") ) ) nA *= 1024*1024*1024;
-			if ( _tcsstr( sA, _T(" T") ) ) nA *= 1099511627776.0f;
-
-			if ( _tcsstr( sB, _T(" K") ) ) nB *= 1024;
-			if ( _tcsstr( sB, _T(" M") ) ) nB *= 1024*1024;
-			if ( _tcsstr( sB, _T(" G") ) ) nB *= 1024*1024*1024;
-			if ( _tcsstr( sB, _T(" T") ) ) nB *= 1099511627776.0f;
-
-		if ( nA < nB )
-			return -1;
-		else if ( nA > nB )
-			return 1;
-		else
-			return 0;
-	}
-	else
-	{
-		return _tcsicoll( sA, sB );
-	}
+	return CompareColumnText( sA, sB, bNumeric );
 }
 
 BOOL CLiveList::IsNumber(LPCTSTR pszString)
 {
-	if ( ! *pszString ) return FALSE;
-
-	// TODO: Is this the best way to do this?
-	if ( *pszString == '(' && _tcsstr( pszString, _T(" source") ) != NULL ) return TRUE;
-	if ( *pszString == 'Q' && _istdigit( pszString[1] ) ) return TRUE;
-
-	BOOL bSpace = FALSE;
-	int nNonDigit = 0;
-
-	for ( ; *pszString ; pszString++ )
-	{
-		if ( _istdigit( *pszString ) || *pszString == '.' )
-		{
-			// if ( bSpace ) return FALSE;
-		}
-		else if ( *pszString == ' ' )
-		{
-			if ( bSpace ) return FALSE;
-			bSpace = TRUE;
-		}
-		else if ( *pszString == 'k' && ( ! pszString[1] || pszString[1] == '~' ) )
-		{
-			// Allows ###k and ###k~
-			return TRUE;
-		}
-		else if ( *pszString == '(' || *pszString == ')' )
-		{
-		}
-		else
-		{
-			if ( ! bSpace ) return FALSE;
-			if ( ++nNonDigit > 4 ) return FALSE;
-		}
-	}
-
-	return TRUE;
+	return IsColumnNumber( pszString );
 }
 
 //////////////////////////////////////////////////////////////////////

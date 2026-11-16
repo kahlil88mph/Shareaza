@@ -22,6 +22,7 @@
 #pragma once
 
 #include "CtrlUploadTip.h"
+#include "UploadQueues.h"	// ULF_* filter masks
 
 class CUploadFile;
 class CUploadQueue;
@@ -93,10 +94,3 @@ public:
 	afx_msg void OnKillFocus(CWnd* pNewWnd);
 	afx_msg UINT OnGetDlgCode();
 };
-
-#define ULF_ACTIVE		0x01
-#define ULF_QUEUED		0x02
-#define ULF_HISTORY		0x04
-#define ULF_TORRENT		0x08
-
-#define ULF_ALL			(ULF_ACTIVE|ULF_QUEUED|ULF_HISTORY|ULF_TORRENT)

@@ -138,3 +138,8 @@ inline CWnd* AfxGetMainWnd() { return NULL; }
 #define SND_APPLICATION 0x0080
 inline BOOL PlaySoundW(LPCWSTR, HMODULE, DWORD) { return FALSE; }
 #define PlaySound PlaySoundW
+
+// GDI objects: none exist on Linux (chat messages carry no bitmaps), so
+// there is nothing to delete.
+typedef HANDLE HGDIOBJ;
+inline BOOL DeleteObject(HGDIOBJ hObject) { return hObject == NULL ? FALSE : TRUE; }

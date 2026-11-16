@@ -1460,3 +1460,52 @@ void CDownloads::PurgePreviews()
 
 	FindClose( hSearch );
 }
+
+//////////////////////////////////////////////////////////////////////
+// CDownloads list filter (for the downloads list; moved from CDownloadsCtrl)
+
+bool CDownloads::IsFiltered(const CDownload* pDownload)
+{
+	ASSUME_LOCK( Transfers.m_pSection );
+
+	if ( Settings.General.GUIMode == GUI_BASIC )
+		return false;
+
+	if ( pDownload->IsCompleted() )
+		return false;
+
+	DWORD nFilterMask = Settings.Downloads.FilterMask;
+
+	if ( pDownload->IsDownloading() || pDownload->IsMoving() )
+		return ( ( nFilterMask & DLF_ACTIVE ) == 0 );
+
+	if ( pDownload->IsPaused() )
+		return ( ( nFilterMask & DLF_PAUSED ) == 0 );
+
+	if ( pDownload->GetEffectiveSourceCount() > 0 )
+		return ( ( nFilterMask & DLF_QUEUED ) == 0 );
+
+	return ( ( nFilterMask & DLF_SOURCES ) == 0 );
+}
+
+BOOL CDownloads::IsExpandable(CDownload* pDownload)
+{
+	if ( pDownload->IsSeeding() && !Settings.General.DebugBTSources ) return FALSE;
+	if ( Settings.Downloads.ShowSources )
+	{
+		return ( pDownload->GetSourceCount() > 0 );
+	}
+	else
+	{
+		for ( POSITION posSource = pDownload->GetIterator(); posSource ; )
+		{
+			CDownloadSource* pSource = pDownload->GetNext( posSource );
+
+			if ( pSource->IsOnline() )
+			{
+				return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}

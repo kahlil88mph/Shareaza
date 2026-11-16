@@ -170,6 +170,8 @@ public:
 	CArchive& operator<<(double v) { Write( &v, 8 ); return *this; }
 	CArchive& operator<<(const CStringW& s);
 	CArchive& operator<<(const CStringA& s);
+	CArchive& operator<<(const CTime& t) { LONGLONG n = t.GetTime(); Write( &n, 8 ); return *this; }	// __time64_t, as MFC stores it
+	CArchive& operator<<(const CTimeSpan& t) { LONGLONG n = t.GetTimeSpan(); Write( &n, 8 ); return *this; }
 
 	CArchive& operator>>(BYTE& v) { Fill( &v, 1 ); return *this; }
 	CArchive& operator>>(char& v) { Fill( &v, 1 ); return *this; }
@@ -188,6 +190,8 @@ public:
 	CArchive& operator>>(double& v) { Fill( &v, 8 ); return *this; }
 	CArchive& operator>>(CStringW& s);
 	CArchive& operator>>(CStringA& s);
+	CArchive& operator>>(CTime& t) { LONGLONG n; Fill( &n, 8 ); t = CTime( n ); return *this; }
+	CArchive& operator>>(CTimeSpan& t) { LONGLONG n; Fill( &n, 8 ); t = CTimeSpan( n ); return *this; }
 
 	int m_nObjectSchema;
 	CString m_strFileName;

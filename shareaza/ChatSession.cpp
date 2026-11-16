@@ -25,7 +25,11 @@
 #include "Buffer.h"
 #include "ChatCore.h"
 #include "ChatSession.h"
+#ifdef _WIN32
 #include "ChatWindows.h"
+#else
+#include "../linux/engine/PrivateChats.h"	// headless chats, with the ChatWindows lookups
+#endif // _WIN32
 #include "DCClient.h"
 #include "DCPacket.h"
 #include "EDClient.h"
@@ -173,7 +177,11 @@ void CChatSession::MakeActive(BOOL bAddUsers)
 
 		if ( ! m_pWndPrivate )
 		{
+#ifdef _WIN32
 			PostMainWndMessage( WM_OPENCHAT, (WPARAM)this );
+#else
+			OnOpenWindow();	// no main window to post to: open the chat now
+#endif // _WIN32
 		}
 	}
 }
@@ -821,6 +829,7 @@ BOOL CChatSession::OnCaptchaRequest(CEDPacket* pPacket)
 		pTag.Read( pPacket );
 	}
 
+#ifdef _WIN32
 	// Load bitmap
 	CImageFile imgCaptcha;
 	if ( imgCaptcha.LoadFromMemory( _T(".bmp"), (LPCVOID)( pPacket->m_pBuffer + pPacket->m_nPosition ), pPacket->GetRemaining() ) &&
@@ -828,6 +837,10 @@ BOOL CChatSession::OnCaptchaRequest(CEDPacket* pPacket)
 	{
 		NotifyMessage( cmtStatus, m_sNick, LoadString( IDS_CHAT_CAPTCHA_REQUEST ), imgCaptcha.CreateBitmap() );
 	}
+#else
+	// No image decoding on Linux yet: the request is shown without its picture
+	NotifyMessage( cmtStatus, m_sNick, LoadString( IDS_CHAT_CAPTCHA_REQUEST ) );
+#endif // _WIN32
 
 	return TRUE;
 }

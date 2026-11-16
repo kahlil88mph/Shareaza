@@ -36,8 +36,12 @@
 #include "GGEP.h"
 #include "XML.h"
 
+#ifdef _WIN32
 #include "WndSearch.h"
 #include "DlgHelp.h"
+#else
+#include "../linux/engine/SearchSessions.h"
+#endif // _WIN32
 
 #include "Download.h"
 #include "Downloads.h"
@@ -2058,6 +2062,7 @@ void CQuerySearch::Serialize(CArchive& ar)
 
 CSearchWnd* CQuerySearch::OpenWindow(CQuerySearch* pSearch)
 {
+#ifdef _WIN32
 	if ( pSearch && pSearch->CheckValid( false ) )
 	{
 		return new CSearchWnd( pSearch );
@@ -2066,6 +2071,9 @@ CSearchWnd* CQuerySearch::OpenWindow(CQuerySearch* pSearch)
 	{
 		return NULL;
 	}
+#else
+	return SearchSessions.Open( pSearch );	// checks the search as above
+#endif // _WIN32
 }
 
 void CQuerySearch::PrepareCheck()
@@ -2079,6 +2087,7 @@ void CQuerySearch::PrepareCheck()
 
 void CQuerySearch::SearchHelp()
 {
+#ifdef _WIN32
 	static int nLastSearchHelp = 0;
 	switch ( ++nLastSearchHelp )
 	{
@@ -2089,6 +2098,10 @@ void CQuerySearch::SearchHelp()
 	default: CHelpDlg::Show( _T("SearchHelp.BadSearch3") );
 		nLastSearchHelp = 0;
 	}
+#else
+	// No help windows on Linux
+	theApp.Message( MSG_NOTICE, _T("The search is too short or too general to run.") );
+#endif // _WIN32
 }
 
 CString CQuerySearch::BuildRegExp(const CString& strPattern) const

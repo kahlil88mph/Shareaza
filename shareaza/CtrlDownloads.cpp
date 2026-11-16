@@ -257,48 +257,12 @@ BOOL CDownloadsCtrl::LoadColumnState()
 
 bool CDownloadsCtrl::IsFiltered(const CDownload* pDownload)
 {
-	ASSUME_LOCK( Transfers.m_pSection );
-
-	if ( Settings.General.GUIMode == GUI_BASIC )
-		return false;
-
-	if ( pDownload->IsCompleted() )
-		return false;
-
-	DWORD nFilterMask = Settings.Downloads.FilterMask;
-
-	if ( pDownload->IsDownloading() || pDownload->IsMoving() )
-		return ( ( nFilterMask & DLF_ACTIVE ) == 0 );
-
-	if ( pDownload->IsPaused() )
-		return ( ( nFilterMask & DLF_PAUSED ) == 0 );
-
-	if ( pDownload->GetEffectiveSourceCount() > 0 )
-		return ( ( nFilterMask & DLF_QUEUED ) == 0 );
-
-	return ( ( nFilterMask & DLF_SOURCES ) == 0 );
+	return CDownloads::IsFiltered( pDownload );
 }
 
 BOOL CDownloadsCtrl::IsExpandable(CDownload* pDownload)
 {
-	if ( pDownload->IsSeeding() && !Settings.General.DebugBTSources ) return FALSE;
-	if ( Settings.Downloads.ShowSources )
-	{
-		return ( pDownload->GetSourceCount() > 0 );
-	}
-	else
-	{
-		for ( POSITION posSource = pDownload->GetIterator(); posSource ; )
-		{
-			CDownloadSource* pSource = pDownload->GetNext( posSource );
-
-			if ( pSource->IsOnline() )
-			{
-				return TRUE;
-			}
-		}
-	}
-	return FALSE;
+	return CDownloads::IsExpandable( pDownload );
 }
 
 void CDownloadsCtrl::SelectTo(int nIndex)

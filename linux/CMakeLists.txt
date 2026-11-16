@@ -67,7 +67,8 @@ list(TRANSFORM ENGINE_SOURCES PREPEND ${SHAREAZA_SRC}/shareaza/)
 list(APPEND ENGINE_SOURCES engine/ShareazaHost.cpp engine/Registry.cpp engine/ShellIcons.cpp engine/ImageFile.cpp)
 # Host pieces that call into transfers, the library and URLs. They join the
 # build once those modules are ported (syntax-checked until then).
-set(HOST_LATER engine/ShareazaHostFiles.cpp engine/ShareazaHostMessages.cpp)
+set(HOST_LATER engine/ShareazaHostFiles.cpp engine/ShareazaHostMessages.cpp
+	engine/SearchSessions.cpp engine/BrowseSessions.cpp engine/PrivateChats.cpp)
 
 # G2Packet.cpp holds both the G2 wire format and the protocol handlers,
 # which reach into the whole network layer. Until that layer is ported,

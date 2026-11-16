@@ -39,7 +39,11 @@
 #include "SharedFile.h"
 #include "Transfers.h"
 #include "VendorCache.h"
+#ifdef _WIN32
 #include "WndBrowseHost.h"
+#else
+#include "../linux/engine/BrowseSessions.h"
+#endif // _WIN32
 #include "XML.h"
 
 #ifdef _DEBUG

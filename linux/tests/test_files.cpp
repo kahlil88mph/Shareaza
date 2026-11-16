@@ -134,6 +134,29 @@ int main()
 	CHECK( GetFullPathName( L"\\a\\.\\b\\..\\c", 512, sz, NULL ) == 4 && CString( sz ) == L"\\a\\c" );
 	CHECK( CString( PathFindFileName( L"\\x\\y\\file.txt" ) ) == L"file.txt" );
 
+	// CTime and CTimeSpan in archives: 64-bit, as MFC stores __time64_t
+	{
+		const CString strArc = strDir + L"\\time.dat";
+		CFile oFile;
+		CHECK( oFile.Open( strArc, CFile::modeCreate | CFile::modeWrite ) );
+		{
+			CArchive ar( &oFile, CArchive::store );
+			ar << CTime( 0x123456789LL ) << CTimeSpan( -86400 );
+			ar.Close();
+		}
+		oFile.Close();
+		CHECK( oFile.Open( strArc, CFile::modeRead ) && oFile.GetLength() == 16 );
+		{
+			CArchive ar( &oFile, CArchive::load );
+			CTime t;
+			CTimeSpan d;
+			ar >> t >> d;
+			CHECK( t.GetTime() == 0x123456789LL && d.GetTimeSpan() == -86400 );
+			ar.Close();
+		}
+		oFile.Close();
+	}
+
 	system( ( std::string( "rm -rf '" ) + szDir + "'" ).c_str() );
 	printf( "files: %d passed, %d failed\n", g_nPassed, g_nFailed );
 	return g_nFailed ? 1 : 0;

@@ -39,6 +39,8 @@
 #endif // _WIN32
 #ifdef _WIN32
 #include "WndMain.h"
+#else
+#include "../linux/engine/BrowseSessions.h"
 #endif // _WIN32
 
 #include "Network.h"
@@ -1413,7 +1415,10 @@ BOOL CLibraryFile::OnVerifyDownload(const CLibraryRecent* pRecent)
 				return TRUE;
 		}
 	}
-
+#else
+	// Host browses waiting for this file
+	if ( BrowseSessions.OnNewFile( this ) )
+		return TRUE;
 #endif
 
 	// Notify version checker

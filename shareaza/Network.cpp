@@ -45,10 +45,15 @@
 #include "SearchManager.h"
 #include "Statistics.h"
 #include "Transfers.h"
+#ifdef _WIN32
 #include "WndHitMonitor.h"
 #include "WndMain.h"
 #include "WndSearch.h"
 #include "WndSearchMonitor.h"
+#else
+#include "../linux/engine/BrowseSessions.h"
+#include "../linux/engine/SearchSessions.h"
+#endif // _WIN32
 
 #include "MiniUPnP.h"		// UPnP tier 0 - MiniUPnPc library
 #include "UPnPNAT.h"		// UPnP tier 1 - Windows modern
@@ -1672,6 +1677,7 @@ BOOL CNetwork::OnPush(const Hashes::Guid& oGUID, CConnection* pConnection)
 	if ( ChatCore.OnPush( oGUID, pConnection ) )
 		return TRUE;
 
+#ifdef _WIN32
 	CSingleLock oAppLock( &theApp.m_pSection );
 	if ( ! oAppLock.Lock( 250 ) )
 		return FALSE;
@@ -1685,6 +1691,11 @@ BOOL CNetwork::OnPush(const Hashes::Guid& oGUID, CConnection* pConnection)
 				return TRUE;
 		}
 	}
+#else
+	// Host browses waiting for a pushed connection
+	if ( BrowseSessions.OnPush( oGUID, pConnection ) )
+		return TRUE;
+#endif // _WIN32
 
 	return FALSE;
 }
@@ -1780,6 +1791,9 @@ bool CNetwork::ProcessQuerySearch(CNetwork::CJob& oJob)
 	{
 	case 0:
 		// Send searches to monitor window
+#ifndef _WIN32
+		oJob.Next();	// no search monitor on Linux
+#else
 		{
 			CSingleLock oAppLock( &theApp.m_pSection );
 			if ( oAppLock.Lock( 250 ) )
@@ -1799,6 +1813,7 @@ bool CNetwork::ProcessQuerySearch(CNetwork::CJob& oJob)
 				oJob.Next();
 			}
 		}
+#endif // _WIN32
 		break;
 
 	case 1:
@@ -1853,6 +1868,12 @@ bool CNetwork::ProcessQueryHits(CNetwork::CJob& oJob)
 
 	case 2:
 		// Send hits to search windows
+#ifndef _WIN32
+		// Linux: to the headless searches (there is no hit monitor). The
+		// sessions wait for their own locks, as the windows do.
+		SearchSessions.OnQueryHits( pHits );
+		oJob.Next();
+#else
 		{
 			CSingleLock oAppLock( &theApp.m_pSection );
 			if ( oAppLock.Lock( 250 ) )
@@ -1885,6 +1906,7 @@ bool CNetwork::ProcessQueryHits(CNetwork::CJob& oJob)
 				oJob.Next();
 			}
 		}
+#endif // _WIN32
 		break;
 	}
 

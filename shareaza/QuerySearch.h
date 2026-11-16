@@ -26,7 +26,14 @@
 
 class CPacket;
 class CXMLElement;
+#ifdef _WIN32
 class CSearchWnd;
+#else
+// No windows on Linux: a search opens as a headless CSearchSession
+// (linux/engine/SearchSessions.h).
+class CSearchSession;
+typedef CSearchSession CSearchWnd;
+#endif
 class CG1Packet;
 class CG2Packet;
 class CEDPacket;

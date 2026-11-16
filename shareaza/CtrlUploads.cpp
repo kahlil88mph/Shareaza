@@ -459,200 +459,22 @@ BOOL CUploadsCtrl::GetAt(int nSelect, CUploadQueue** ppQueue, CUploadFile** ppFi
 
 POSITION CUploadsCtrl::GetQueueIterator()
 {
-	ASSUME_LOCK( UploadQueues.m_pSection );
-
-	if ( Settings.Uploads.FilterMask & ULF_TORRENT )
-	{
-		return (POSITION)UploadQueues.m_pTorrentQueue;
-	}
-	else if ( Settings.Uploads.FilterMask & ( ULF_ACTIVE | ULF_QUEUED ) )
-	{
-		return UploadQueues.GetIterator();
-	}
-	else if ( Settings.Uploads.FilterMask & ULF_HISTORY )
-	{
-		return (POSITION)UploadQueues.m_pHistoryQueue;
-	}
-	else
-	{
-		return NULL;
-	}
+	return CUploadQueues::GetFilterIterator();
 }
 
 CUploadQueue* CUploadsCtrl::GetNextQueue(POSITION& pos)
 {
-	ASSUME_LOCK( UploadQueues.m_pSection );
-	ASSERT( pos != NULL );
-	
-	if ( pos == (POSITION)UploadQueues.m_pTorrentQueue )
-	{
-		if ( Settings.Uploads.FilterMask & ( ULF_ACTIVE | ULF_QUEUED ) )
-		{
-			pos = UploadQueues.GetIterator();
-			if ( pos == NULL ) pos = (POSITION)UploadQueues.m_pHistoryQueue;
-		}
-		else if ( Settings.Uploads.FilterMask & ULF_HISTORY )
-		{
-			pos = (POSITION)UploadQueues.m_pHistoryQueue;
-		}
-		else
-		{
-			pos = NULL;
-		}
-		
-		return UploadQueues.m_pTorrentQueue;
-	}
-	else if ( pos == (POSITION)UploadQueues.m_pHistoryQueue )
-	{
-		pos = NULL;
-		return UploadQueues.m_pHistoryQueue;
-	}
-	else
-	{
-		CUploadQueue* pQueue = UploadQueues.GetNext( pos );
-		
-		if ( pos == NULL )
-		{
-			if ( Settings.Uploads.FilterMask & ULF_HISTORY )
-			{
-				pos = (POSITION)UploadQueues.m_pHistoryQueue;
-			}
-		}
-		
-		return pQueue;
-	}
+	return CUploadQueues::GetNextFiltered( pos );
 }
 
 POSITION CUploadsCtrl::GetFileIterator(CUploadQueue* pQueue)
 {
-	ASSUME_LOCK( Transfers.m_pSection );
-
-	if ( pQueue == UploadQueues.m_pTorrentQueue )
-	{
-		for ( POSITION posNext = UploadFiles.GetIterator() ; posNext ; )
-		{
-			POSITION posThis = posNext;
-			CUploadFile* pFile = UploadFiles.GetNext( posNext );
-			CUploadTransfer* pTransfer = pFile->GetActive();
-			if ( pTransfer == NULL || pTransfer->m_nState == upsNull ) continue;
-			if ( pTransfer->m_nProtocol != PROTOCOL_BT ) continue;
-			return posThis;
-		}
-		
-		return NULL;
-	}
-	else if ( pQueue == UploadQueues.m_pHistoryQueue )
-	{
-		for ( POSITION posNext = UploadFiles.GetIterator() ; posNext ; )
-		{
-			POSITION posThis = posNext;
-			CUploadFile* pFile = UploadFiles.GetNext( posNext );
-			CUploadTransfer* pTransfer = pFile->GetActive();
-			if ( pTransfer != NULL )
-			{
-				if ( pTransfer->m_nProtocol == PROTOCOL_BT && pTransfer->m_nState != upsNull ) continue;
-				if ( pTransfer->m_pQueue != NULL ) continue;
-			}
-			return posThis;
-		}
-		
-		return NULL;
-	}
-	else
-	{
-		if ( Settings.Uploads.FilterMask & ULF_ACTIVE )
-		{
-			if ( pQueue->GetActiveCount() > 0 )
-			{
-				return pQueue->GetActiveIterator();
-			}
-		}
-		
-		if ( Settings.Uploads.FilterMask & ULF_QUEUED )
-		{
-			if ( pQueue->GetQueuedCount() > 0 )
-			{
-				return (POSITION)1;
-			}
-		}
-		
-		return NULL;
-	}
+	return CUploadQueues::GetFilteredFileIterator( pQueue );
 }
 
 CUploadFile* CUploadsCtrl::GetNextFile(CUploadQueue* pQueue, POSITION& pos, int* pnPosition)
 {
-	ASSUME_LOCK( Transfers.m_pSection );
-	ASSERT( pos != NULL );
-	
-	if ( pnPosition != NULL ) *pnPosition = -1;
-	
-	if ( pQueue == UploadQueues.m_pTorrentQueue )
-	{
-		CUploadFile* pReturn = UploadFiles.GetNext( pos );
-		
-		for ( ; pos ; )
-		{
-			POSITION posThis = pos;
-			CUploadFile* pFile = UploadFiles.GetNext( pos );
-			CUploadTransfer* pTransfer = pFile->GetActive();
-			if ( pTransfer == NULL || pTransfer->m_nState == upsNull ) continue;
-			if ( pTransfer->m_nProtocol != PROTOCOL_BT ) continue;
-			pos = posThis;
-			break;
-		}
-		
-		return pReturn;
-	}
-	else if ( pQueue == UploadQueues.m_pHistoryQueue )
-	{
-		CUploadFile* pReturn = UploadFiles.GetNext( pos );
-		
-		for ( ; pos ; )
-		{
-			POSITION posThis = pos;
-			CUploadFile* pFile = UploadFiles.GetNext( pos );
-			CUploadTransfer* pTransfer = pFile->GetActive();
-			if ( pTransfer != NULL )
-			{
-				//if ( pTransfer->m_nProtocol == PROTOCOL_BT && pTransfer->m_nState != upsNull ) continue;
-				if ( pTransfer->m_nState != upsNull ) continue;
-				if ( pTransfer->m_pQueue != NULL ) continue;
-			}
-			pos = posThis;
-			break;
-		}
-		
-		return pReturn;
-	}
-	else if ( (UINT_PTR)pos > pQueue->GetQueuedCount() )
-	{
-		CUploadTransfer* pTransfer = pQueue->GetNextActive( pos );
-		
-		if ( pos == NULL )
-		{
-			if ( Settings.Uploads.FilterMask & ULF_QUEUED )
-			{
-				if ( pQueue->GetQueuedCount() > 0 )
-				{
-					pos = (POSITION)1;
-				}
-			}
-		}
-		
-		if ( pnPosition != NULL ) *pnPosition = 0;
-		return pTransfer->m_pBaseFile;
-	}
-	else
-	{
-		UINT_PTR nPos = (UINT_PTR)pos;
-		CUploadTransfer* pTransfer = pQueue->GetQueuedAt( nPos - 1 );
-		if ( pnPosition != NULL ) *pnPosition = static_cast< int >( nPos );
-		++nPos;
-		if ( nPos > pQueue->GetQueuedCount() ) nPos = 0;
-		pos = (POSITION)nPos;
-		return pTransfer->m_pBaseFile;
-	}
+	return CUploadQueues::GetNextFilteredFile( pQueue, pos, pnPosition );
 }
 
 //////////////////////////////////////////////////////////////////////////////

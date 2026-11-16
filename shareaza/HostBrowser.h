@@ -21,7 +21,14 @@
 
 #pragma once
 
+#ifdef _WIN32
 class CBrowseHostWnd;
+#else
+// No windows on Linux: a browse reports to a headless CBrowseSession
+// (linux/engine/BrowseSessions.h).
+class CBrowseSession;
+typedef CBrowseSession CBrowseHostWnd;
+#endif
 class CBuffer;
 class CEDPacket;
 class CG1Packet;

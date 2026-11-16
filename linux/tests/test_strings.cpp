@@ -56,6 +56,19 @@ int main()
 	CHECK( ShellIcons.GetTypeString( L"\\x\\song.mp3" ) == L"mp3 (audio/mpeg)" );
 	CHECK( ShellIcons.Get( L"song.mp3", 16 ) == -1 );
 
+	// List column comparison (moved from CLiveList::SortProc for the search results)
+	CHECK( CompareColumnText( L"10.0.0.2", L"9.255.255.255" ) > 0 );	// IP addresses by address
+	CHECK( CompareColumnText( L"10.0.0.0/255.0.0.0", L"10.0.0.0/255.255.0.0" ) < 0 );	// then by mask
+	CHECK( CompareColumnText( L"2.00 MB", L"900 KB" ) > 0 );		// sizes by value
+	CHECK( CompareColumnText( L"1.5 GB", L"1600 MB" ) < 0 );
+	CHECK( CompareColumnText( L"(12 sources)", L"(3 sources)" ) > 0 );	// source counts
+	CHECK( CompareColumnText( L"Q10", L"Q9" ) > 0 );				// queue positions
+	CHECK( CompareColumnText( L"10", L"9" ) > 0 && CompareColumnText( L"7", L"7" ) == 0 );
+	CHECK( CompareColumnText( L"abc", L"ABD" ) < 0 && CompareColumnText( L"Zed", L"alpha" ) > 0 );	// text, ignoring case
+	CHECK( CompareColumnText( L"x10", L"x9" ) < 0 );				// mixed text is not a number
+	CHECK( CompareColumnText( L"3", L"20", TRUE ) < 0 );
+	CHECK( IsColumnNumber( L"12.5 KB" ) && IsColumnNumber( L"300k~" ) && ! IsColumnNumber( L"" ) && ! IsColumnNumber( L"song.mp3" ) );
+
 	printf( "strings: %d passed, %d failed\n", g_nPassed, g_nFailed );
 	return g_nFailed ? 1 : 0;
 }

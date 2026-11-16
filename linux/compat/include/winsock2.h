@@ -202,3 +202,9 @@ inline bool IN6_ARE_ADDR_EQUAL(const IN6_ADDR* a, const IN6_ADDR* b) { return me
 #define in6_addr compat_in6_addr
 #define sockaddr_in compat_sockaddr_in
 #define sockaddr_in6 compat_sockaddr_in6
+
+// glibc declares in6addr_any / in6addr_loopback with its own struct type
+inline const IN6_ADDR& compat_in6addr_any() { static const IN6_ADDR a = {}; return a; }
+inline const IN6_ADDR& compat_in6addr_loopback() { static const IN6_ADDR a = { { { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1 } } }; return a; }
+#define in6addr_any compat_in6addr_any()
+#define in6addr_loopback compat_in6addr_loopback()

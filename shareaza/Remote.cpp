@@ -51,12 +51,22 @@
 #include "EDPacket.h"
 #include "GProfile.h"
 #include "ShareazaURL.h"
+#ifdef _WIN32
 #include "Skin.h"
 
 #include "WndMain.h"
 #include "WndSearch.h"
-#include "CtrlDownloads.h"
-#include "CtrlUploads.h"
+#else
+#include "../linux/engine/SearchSessions.h"
+
+// No skins on Linux: the search columns keep their English names
+namespace {
+	struct CRemoteSkin
+	{
+		CString GetHeaderTranslation(LPCTSTR /*pszClass*/, LPCTSTR pszName) const { return pszName; }
+	} Skin;
+}
+#endif // _WIN32
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -526,9 +536,14 @@ void CRemote::PageSearch()
 	CSingleLock pLock( &theApp.m_pSection );
 	if ( ! pLock.Lock( 1000 ) )
 		return;
+#ifdef _WIN32
 	CMainWnd* pMainWnd = static_cast< CMainWnd* >( theApp.m_pMainWnd );
 	if ( pMainWnd == NULL || ! pMainWnd->IsKindOf( RUNTIME_CLASS(CMainWnd) ) )
 		return;
+#else
+	// The searches are headless sessions; the ID is the session's
+	CQuickLock oSessionsLock( SearchSessions.m_pSection );
+#endif // _WIN32
 	
 	INT_PTR nSearchID = NULL;
 	INT_PTR nCloseID = NULL;
@@ -541,6 +556,7 @@ void CRemote::PageSearch()
 	Prepare();
 	Output( _T("searchHeader") );
 	
+#ifdef _WIN32
 	for ( CSearchWnd* pFindWnd = NULL ; ( pFindWnd = static_cast< CSearchWnd* >( pMainWnd->m_pWindows.Find( RUNTIME_CLASS(CSearchWnd), pFindWnd ) ) ) != NULL ; )
 	{
 		Prepare();
@@ -550,7 +566,17 @@ void CRemote::PageSearch()
 			pFindWnd->PostMessage( WM_CLOSE );
 			continue;
 		}
-		else if ( nSearchID == nFindWnd )
+#else
+	if ( nCloseID )
+		SearchSessions.Close( static_cast< DWORD >( nCloseID ) );
+
+	for ( POSITION posFind = SearchSessions.GetIterator() ; posFind ; )
+	{
+		CSearchWnd* pFindWnd = SearchSessions.GetNext( posFind );
+		Prepare();
+		INT_PTR nFindWnd = static_cast< INT_PTR >( pFindWnd->GetID() );
+#endif // _WIN32
+		if ( nSearchID == nFindWnd )
 		{
 			pSearchWnd = pFindWnd;
 			Add( _T("search_selected"), _T("true") );
@@ -559,7 +585,9 @@ void CRemote::PageSearch()
 		str.Format( _T("%Ii"), nFindWnd );
 		Add( _T("search_id"), str );
 		str = pFindWnd->GetCaption();
+#ifdef _WIN32
 		if ( str.Find( _T("Search : ") ) == 0 ) str = str.Mid( 9 ).SpanExcluding( _T("[") );
+#endif // _WIN32
 		Add( _T("search_caption"), str );
 		Output( _T("searchTab") );
 	}
@@ -800,8 +828,10 @@ void CRemote::PageNewSearch()
 	
 	CSingleLock pLock( &theApp.m_pSection );
 	if ( ! pLock.Lock( 1000 ) ) return;
+#ifdef _WIN32
 	CMainWnd* pMainWnd = (CMainWnd*)theApp.m_pMainWnd;
 	if ( pMainWnd == NULL || ! pMainWnd->IsKindOf( RUNTIME_CLASS(CMainWnd) ) ) return;
+#endif // _WIN32
 	
 	CString strSearch	= GetKey( _T("search") );
 	CString strSchema	= GetKey( _T("schema") );
@@ -820,7 +850,11 @@ void CRemote::PageNewSearch()
 	
 	Settings.Search.LastSchemaURI = strURI;
 	
+#ifdef _WIN32
 	pMainWnd->PostMessage( WM_OPENSEARCH, (WPARAM)pSearch.Detach() );
+#else
+	CQuerySearch::OpenWindow( pSearch );	// what the main window does with WM_OPENSEARCH
+#endif // _WIN32
 	pLock.Unlock();
 	Sleep( 500 );
 	
@@ -901,11 +935,11 @@ void CRemote::PageDownloads()
 		{
 			const CString action = GetKey( _T("modify_action") );
 			
-			if ( action.CompareNoCase( _T("expand") ) == 0 && CDownloadsCtrl::IsExpandable( pDownload ) )
+			if ( action.CompareNoCase( _T("expand") ) == 0 && CDownloads::IsExpandable( pDownload ) )
 			{
 				pDownload->m_bExpanded = TRUE;
 			}
-			else if ( action.CompareNoCase( _T("collapse") ) == 0 && CDownloadsCtrl::IsExpandable( pDownload ) )
+			else if ( action.CompareNoCase( _T("collapse") ) == 0 && CDownloads::IsExpandable( pDownload ) )
 			{
 				pDownload->m_bExpanded = FALSE;
 			}
@@ -939,7 +973,7 @@ void CRemote::PageDownloads()
 			}
 		}
 		
-		if ( CDownloadsCtrl::IsFiltered( pDownload ) ) continue;
+		if ( CDownloads::IsFiltered( pDownload ) ) continue;
 		
 		CDownloadGroup* pGroup = NULL;
 		
@@ -962,7 +996,7 @@ void CRemote::PageDownloads()
 		str.Format( _T("%i"), 100 - nProgress );
 		Add( _T("download_percent_inverse"), str );
 		Add( _T("download_speed"), Settings.SmartSpeed( pDownload->GetMeasuredSpeed() ) );
-		if ( CDownloadsCtrl::IsExpandable( pDownload ) )
+		if ( CDownloads::IsExpandable( pDownload ) )
 		{
 			if ( pDownload->m_bExpanded ) Add( _T("download_is_expanded"), _T("true") );
 			else Add( _T("download_is_collapsed"), _T("true") );
@@ -981,7 +1015,7 @@ void CRemote::PageDownloads()
 		Add( _T("download_sources"), pDownload->GetDownloadSources() );
 		Output( _T("downloadsDownload") );
 		
-		if ( pDownload->m_bExpanded && CDownloadsCtrl::IsExpandable( pDownload ) )
+		if ( pDownload->m_bExpanded && CDownloads::IsExpandable( pDownload ) )
 		{
 			for ( POSITION posSource = pDownload->GetIterator(); posSource ; )
 			{
@@ -1104,9 +1138,9 @@ void CRemote::PageUploads()
 
 	Output( _T("uploadsHeader") );
 	
-	for ( POSITION posQueue = CUploadsCtrl::GetQueueIterator() ; posQueue != NULL ; )
+	for ( POSITION posQueue = CUploadQueues::GetFilterIterator() ; posQueue != NULL ; )
 	{
-		CUploadQueue* pQueue = CUploadsCtrl::GetNextQueue( posQueue );
+		CUploadQueue* pQueue = CUploadQueues::GetNextFiltered( posQueue );
 		
 		CString queue_id;
 		queue_id.Format( _T("%p"), pQueue );
@@ -1114,7 +1148,7 @@ void CRemote::PageUploads()
 		if ( GetKey( _T("queue_expand") ) == queue_id ) pQueue->m_bExpanded = TRUE;
 		else if ( GetKey( _T("queue_collapse") ) == queue_id ) pQueue->m_bExpanded = FALSE;
 		
-		POSITION posFile = CUploadsCtrl::GetFileIterator( pQueue );
+		POSITION posFile = CUploadQueues::GetFilteredFileIterator( pQueue );
 		if ( posFile == NULL ) continue;
 		
 		Prepare();
@@ -1139,7 +1173,7 @@ void CRemote::PageUploads()
 			while ( posFile != NULL )
 			{
 				int nPosition;
-				CUploadFile* pFile = CUploadsCtrl::GetNextFile( pQueue, posFile, &nPosition );
+				CUploadFile* pFile = CUploadQueues::GetNextFilteredFile( pQueue, posFile, &nPosition );
 				if ( pFile == NULL ) continue;
 				CUploadTransfer* pTransfer = pFile->GetActive();
 				

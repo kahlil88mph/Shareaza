@@ -38,7 +38,34 @@ class CDownload;
 class CMetaList;
 class CXMLElement;
 class Review;
-class CBaseMatchWnd;
+
+#ifdef _WIN32
+class CBaseMatchWnd;		// the window showing the matches
+#else
+#include "QuerySearch.h"
+// No windows on Linux: the matches belong to a headless search or host
+// browse (linux/engine/SearchSessions.h), which gives the search behind them.
+class CMatchListOwner
+{
+public:
+	virtual ~CMatchListOwner() {}
+	virtual CQuerySearchPtr GetLastSearch() const = 0;
+};
+typedef CMatchListOwner CBaseMatchWnd;
+#endif
+
+// Match list columns (sort keys; the search window shows them in this order)
+#define MATCH_COL_NAME		0
+#define MATCH_COL_TYPE		1
+#define MATCH_COL_SIZE		2
+#define MATCH_COL_RATING	3
+#define MATCH_COL_STATUS	4
+#define MATCH_COL_COUNT		5
+#define MATCH_COL_SPEED		6
+#define MATCH_COL_CLIENT	7
+#define MATCH_COL_TIME		8
+#define MATCH_COL_COUNTRY	9
+#define MATCH_COL_MAX		10
 
 typedef struct
 {

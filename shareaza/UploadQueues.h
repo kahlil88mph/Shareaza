@@ -25,6 +25,15 @@ class CUploadQueue;
 class CUploadTransfer;
 class CLibraryFile;
 class CDownload;
+class CUploadFile;
+
+// Which uploads the list shows (Settings.Uploads.FilterMask)
+#define ULF_ACTIVE		0x01
+#define ULF_QUEUED		0x02
+#define ULF_HISTORY		0x04
+#define ULF_TORRENT		0x08
+
+#define ULF_ALL			(ULF_ACTIVE|ULF_QUEUED|ULF_HISTORY|ULF_TORRENT)
 
 
 class CUploadQueues
@@ -37,6 +46,15 @@ public:
 	mutable CMutexEx	m_pSection;
 	CUploadQueue*		m_pTorrentQueue;
 	CUploadQueue*		m_pHistoryQueue;
+
+	// The uploads list as the interface shows it (Settings.Uploads.FilterMask):
+	// the torrent pseudo-queue, the real queues, then the history pseudo-queue,
+	// and the files in each. Queue walks need m_pSection, file walks
+	// Transfers.m_pSection. *pnPosition: -1 none, 0 active, n queued at n.
+	static POSITION			GetFilterIterator();
+	static CUploadQueue*	GetNextFiltered(POSITION& pos);
+	static POSITION			GetFilteredFileIterator(CUploadQueue* pQueue);
+	static CUploadFile*		GetNextFilteredFile(CUploadQueue* pQueue, POSITION& pos, int* pnPosition = NULL);
 
 	BOOL	Enqueue(CUploadTransfer* pUpload, BOOL bForce = FALSE);
 	BOOL	Dequeue(CUploadTransfer* pUpload);

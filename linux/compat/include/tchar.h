@@ -4,6 +4,7 @@
 #include <cwchar>
 #include <cwctype>
 #include <ctime>
+#include <string>
 
 #define _tcslen     wcslen
 #define _tcscpy     wcscpy
@@ -12,6 +13,7 @@
 #define _tcscmp     wcscmp
 #define _tcsncmp    wcsncmp
 #define _tcsicmp    _wcsicmp
+#define _tcsicoll   _wcsicoll
 #define _tcsnicmp   _wcsnicmp
 #define _tcschr     wcschr
 #define _tcsrchr    wcsrchr
@@ -35,6 +37,7 @@
 #define _istspace   iswspace
 #define _istdigit   iswdigit
 #define _istalpha   iswalpha
+#define _istgraph   iswgraph
 #define _istalnum   iswalnum
 #define _istxdigit  iswxdigit
 #define _istupper   iswupper
@@ -130,6 +133,14 @@ inline const wchar_t* StrRChrW(const wchar_t* s, const wchar_t* e, wchar_t c)
 }
 inline const wchar_t* StrChrIW(const wchar_t* s, wchar_t c) { for ( ; s && *s; ++s ) if ( towlower( *s ) == towlower( c ) ) return s; return NULL; }
 inline int StrCmpIW(const wchar_t* a, const wchar_t* b) { return _wcsicmp( a, b ); }
+// Locale collation ignoring case: both sides lower-cased, then wcscoll
+inline int _wcsicoll(const wchar_t* a, const wchar_t* b)
+{
+	std::wstring x( a ), y( b );
+	for ( wchar_t& c : x ) c = (wchar_t)towlower( c );
+	for ( wchar_t& c : y ) c = (wchar_t)towlower( c );
+	return wcscoll( x.c_str(), y.c_str() );
+}
 inline int StrCmpNIW(const wchar_t* a, const wchar_t* b, int n) { return _wcsnicmp( a, b, (size_t)n ); }
 inline int StrCmpW(const wchar_t* a, const wchar_t* b) { return wcscmp( a, b ); }
 #define StrStrI StrStrIW

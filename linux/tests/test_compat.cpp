@@ -1,6 +1,8 @@
 // Tests for the Win32 compatibility layer itself.
 
 #include <windows.h>
+#include <winsock2.h>
+#include <tchar.h>
 
 #include <cstdio>
 #include <string>
@@ -93,6 +95,24 @@ int main()
 
 	LONG v = 5;
 	CHECK( InterlockedIncrement( &v ) == 6 && InterlockedCompareExchange( &v, 9, 6 ) == 6 && v == 9 );
+
+	// FoldString MAP_COMPOSITE: accented Latin letters split into letter + mark
+	{
+		const wchar_t szIn[] = L"caf\x00e9 \x00C5\x0151!";
+		const int nNeed = FoldString( MAP_COMPOSITE, szIn, -1, NULL, 0 );
+		CHECK( nNeed == 12 );	// 8 characters, 3 of them split in two, plus the terminator
+		wchar_t szOut[ 16 ] = {};
+		CHECK( FoldString( MAP_COMPOSITE, szIn, -1, szOut, 16 ) == 12 );
+		CHECK( std::wstring( szOut ) == L"cafe\x0301 A\x030Ao\x030B!" );
+		CHECK( FoldString( MAP_COMPOSITE, szIn, -1, szOut, 5 ) == 0 && GetLastError() == ERROR_INSUFFICIENT_BUFFER );
+		CHECK( FoldString( MAP_FOLDDIGITS, szIn, -1, szOut, 16 ) == 0 && GetLastError() == ERROR_INVALID_FLAGS );
+		CHECK( FoldString( MAP_COMPOSITE, L"\x4e2d", 1, szOut, 16 ) == 1 && szOut[ 0 ] == 0x4e2d );	// no decomposition
+	}
+
+	// Case-insensitive collation, and glibc's in6addr_any under the Windows type
+	CHECK( _tcsicoll( L"apple", L"APPLE" ) == 0 && _tcsicoll( L"Apple", L"banana" ) < 0 && _tcsicoll( L"b", L"A" ) > 0 );
+	IN6_ADDR oAny = in6addr_any;
+	CHECK( IN6_IS_ADDR_UNSPECIFIED( &oAny ) && IN6_IS_ADDR_LOOPBACK( &in6addr_loopback ) );
 
 	printf( "compat: %d passed, %d failed\n", g_nPassed, g_nFailed );
 	return g_nFailed ? 1 : 0;

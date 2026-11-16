@@ -22,6 +22,7 @@
 #pragma once
 
 #include "CtrlDownloadTip.h"
+#include "Downloads.h"	// DLF_* filter masks
 
 class CDownload;
 class CDownloadSource;
@@ -110,10 +111,3 @@ public:
 	afx_msg void OnKillFocus(CWnd* pNewWnd);
 	afx_msg UINT OnGetDlgCode();
 };
-
-#define DLF_ACTIVE		0x01
-#define DLF_QUEUED		0x02
-#define DLF_SOURCES		0x04
-#define DLF_PAUSED		0x08
-
-#define DLF_ALL			(DLF_ACTIVE|DLF_QUEUED|DLF_SOURCES|DLF_PAUSED)

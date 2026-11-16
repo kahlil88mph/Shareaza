@@ -46,6 +46,8 @@
 #include "ChatCore.h"
 #ifdef _WIN32
 #include "WndBrowseHost.h"
+#else
+#include "../linux/engine/BrowseSessions.h"
 #endif // _WIN32
 #include "VendorCache.h"
 #include "QueryHit.h"
@@ -640,7 +642,7 @@ CHostBrowser* CEDClient::GetBrowser() const
 #else
 CHostBrowser* CEDClient::GetBrowser() const
 {
-	return NULL;	// Linux: no browse windows (yet)
+	return BrowseSessions.FindBrowsing( m_oGUID, m_pHost.sin_addr, m_pHost.sin_port );
 }
 #endif // _WIN32
 

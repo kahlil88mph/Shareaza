@@ -249,8 +249,36 @@ static void TestThreadsAndWaits()
 	CHECK( nWoken == 3 );
 }
 
+// ::FormatMessage from a string, as the chat code uses it for "%1" messages
+static DWORD FormatFromString(LPWSTR* ppOut, LPCWSTR pszFormat, ...)
+{
+	va_list a;
+	va_start( a, pszFormat );
+	const DWORD n = ::FormatMessage( FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+		pszFormat, 0, 0, (LPWSTR)ppOut, 0, &a );
+	va_end( a );
+	return n;
+}
+
+static void TestFormatMessage()
+{
+	LPWSTR p = NULL;
+	CHECK( FormatFromString( &p, L"%2 says %1!d!%%", 42, L"Bob" ) == 12 && p && CStringW( p ) == L"Bob says 42%" );
+	LocalFree( p );
+	p = NULL;
+	CHECK( FormatFromString( &p, L"no inserts" ) == 10 && CStringW( p ) == L"no inserts" );
+	LocalFree( p );
+
+	WCHAR sz[ 8 ];
+	CHECK( ::FormatMessage( FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_IGNORE_INSERTS, L"%1 x", 0, 0, sz, 8, NULL ) == 4 && CStringW( sz ) == L"%1 x" );
+	CHECK( ::FormatMessage( FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_IGNORE_INSERTS, L"too long text", 0, 0, sz, 8, NULL ) == 0 &&
+		GetLastError() == ERROR_INSUFFICIENT_BUFFER );
+	CHECK( ::FormatMessage( FORMAT_MESSAGE_FROM_SYSTEM, NULL, 5, 0, sz, 8, NULL ) == 0 );	// system messages: not available
+}
+
 int main()
 {
+	TestFormatMessage();
 	TestThreadsAndWaits();
 	TestCString();
 	TestCollections();

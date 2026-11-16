@@ -101,7 +101,7 @@ public:
 	static int CALLBACK	SortCallback(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 	static bool			Less(const CLiveItemPtr& _Left, const CLiveItemPtr& _Right, int nSortColumn);
 	static int			SortProc(LPCTSTR sA, LPCTSTR sB, BOOL bNumeric = FALSE);
-	static inline BOOL	IsNumber(LPCTSTR pszString);
+	static BOOL			IsNumber(LPCTSTR pszString);
 
 // Drag Helpers
 	static HBITMAP		CreateDragImage(CListCtrl* pList, const CPoint& ptMouse, CPoint& ptMiddle);

@@ -26,7 +26,10 @@
 #ifdef _WIN32
 #include "WndPrivateChat.h"
 #else
-class CPrivateChatWnd;	// the chat window (Windows interface)
+// No windows on Linux: a private chat is a headless CPrivateChat
+// (linux/engine/PrivateChats.h), which takes the window's messages.
+class CPrivateChat;
+typedef CPrivateChat CPrivateChatWnd;
 #endif
 
 class CDCPacket;

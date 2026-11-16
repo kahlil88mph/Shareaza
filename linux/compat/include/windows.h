@@ -323,6 +323,7 @@ void  SetLastError(DWORD dwError);
 #define ERROR_INSUFFICIENT_BUFFER 122u
 #define ERROR_ALREADY_EXISTS      183u
 #define ERROR_MORE_DATA           234u
+#define ERROR_INVALID_FLAGS       1004u
 #define ERROR_NO_UNICODE_TRANSLATION 1113u
 #define ERROR_FILE_INVALID        1006u
 #define ERROR_DISK_FULL           112u
@@ -549,10 +550,22 @@ LPWSTR CharUpperW(LPWSTR lpsz);
 #define CharUpper CharUpperW
 #define GetStringType GetStringTypeW
 
+// FoldString. MAP_COMPOSITE splits accented Latin letters (U+00C0 to U+024F)
+// into letter + combining mark; other characters pass through. The other
+// flags are not supported (the call fails with ERROR_INVALID_FLAGS).
+#define MAP_FOLDCZONE   0x00000010
+#define MAP_PRECOMPOSED 0x00000020
+#define MAP_COMPOSITE   0x00000040
+#define MAP_FOLDDIGITS  0x00000080
+int FoldStringW(DWORD dwMapFlags, LPCWSTR lpSrcStr, int cchSrc, LPWSTR lpDestStr, int cchDest);
+#define FoldString FoldStringW
+
 // Window messages the engine posts to its interface (dropped on Linux, see
 // PostMainWndMessage).
 #define WM_USER 0x0400
 #define WM_APP  0x8000
+#define WM_COMMAND 0x0111	// commands to a headless chat or search (ID_CHAT_CONNECT, ID_SEARCH_STOP)
+#define WM_TIMER   0x0113	// a window's redraw timer (ignored by headless searches)
 
 // No DLLs on Linux: optional Windows libraries (Msi.dll, plugins) are absent.
 inline HMODULE LoadLibraryW(LPCWSTR) { SetLastError( ERROR_FILE_NOT_FOUND ); return NULL; }

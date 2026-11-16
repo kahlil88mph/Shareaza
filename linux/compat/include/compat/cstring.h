@@ -515,3 +515,48 @@ typedef CPassString< wchar_t > CW2T;
 typedef CPassString< wchar_t > CT2W;
 typedef CPassString< wchar_t > CW2CT;
 typedef CPassString< wchar_t > CT2CW;
+
+// ::FormatMessage for a format string (FORMAT_MESSAGE_FROM_STRING), with the
+// inserts of CString::FormatMessageV. Messages from the system or a module
+// are not available (the call fails with ERROR_INVALID_PARAMETER). With
+// FORMAT_MESSAGE_ALLOCATE_BUFFER, *lpBuffer receives a LocalAlloc'ed copy.
+#define FORMAT_MESSAGE_ALLOCATE_BUFFER 0x00000100
+#define FORMAT_MESSAGE_IGNORE_INSERTS  0x00000200
+#define FORMAT_MESSAGE_FROM_STRING     0x00000400
+#define FORMAT_MESSAGE_FROM_HMODULE    0x00000800
+#define FORMAT_MESSAGE_FROM_SYSTEM     0x00001000
+#define FORMAT_MESSAGE_ARGUMENT_ARRAY  0x00002000
+inline DWORD FormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD /*dwMessageId*/, DWORD /*dwLanguageId*/,
+	LPWSTR lpBuffer, DWORD nSize, va_list* pArgs)
+{
+	if ( ! ( dwFlags & FORMAT_MESSAGE_FROM_STRING ) || ( dwFlags & FORMAT_MESSAGE_ARGUMENT_ARRAY ) || ! lpSource || ! lpBuffer )
+	{
+		SetLastError( ERROR_INVALID_PARAMETER );
+		return 0;
+	}
+	CStringT< wchar_t > s;
+	if ( ( dwFlags & FORMAT_MESSAGE_IGNORE_INSERTS ) || ! pArgs )
+		s = static_cast< LPCWSTR >( lpSource );
+	else
+		s.FormatMessageV( static_cast< LPCWSTR >( lpSource ), pArgs );
+	const DWORD nLength = (DWORD)s.GetLength();
+	if ( dwFlags & FORMAT_MESSAGE_ALLOCATE_BUFFER )
+	{
+		const DWORD nAlloc = ( nLength + 1 > nSize ? nLength + 1 : nSize );
+		LPWSTR p = static_cast< LPWSTR >( LocalAlloc( LMEM_FIXED, nAlloc * sizeof( WCHAR ) ) );
+		if ( ! p ) { SetLastError( ERROR_NOT_ENOUGH_MEMORY ); return 0; }
+		wmemcpy( p, (LPCWSTR)s, nLength + 1 );
+		*reinterpret_cast< LPWSTR* >( lpBuffer ) = p;
+	}
+	else
+	{
+		if ( nLength + 1 > nSize ) { SetLastError( ERROR_INSUFFICIENT_BUFFER ); return 0; }
+		wmemcpy( lpBuffer, (LPCWSTR)s, nLength + 1 );
+	}
+	return nLength;
+}
+inline DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId,
+	LPWSTR lpBuffer, DWORD nSize, va_list* pArgs)
+{
+	return FormatMessageW( dwFlags, lpSource, dwMessageId, dwLanguageId, lpBuffer, nSize, pArgs );
+}

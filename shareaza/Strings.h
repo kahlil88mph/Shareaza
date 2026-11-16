@@ -166,3 +166,11 @@ CString Escape(const CString& strValue);
 
 // Unescape unsafe symbols
 CString Unescape(const TCHAR* __restrict pszXML, int nLength = -1);
+
+// Compare two list column texts: IP addresses (with masks) by address,
+// numbers and sizes ("1.5 MB", "(3 sources)", "Q12") by value, anything
+// else by collation. bNumeric forces a numeric comparison.
+int CompareColumnText(LPCTSTR sA, LPCTSTR sB, BOOL bNumeric = FALSE);
+
+// Whether a column text reads as a number for CompareColumnText.
+BOOL IsColumnNumber(LPCTSTR pszString);

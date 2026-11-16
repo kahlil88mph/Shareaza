@@ -110,7 +110,3 @@ protected:
 #define IDC_CHAT_TEXT	100
 #define IDC_CHAT_EDIT	101
 #define IDC_CHAT_USERS	102
-
-#define WM_CHAT_MESSAGE				(WM_APP+70)	// (WPARAM: unused, LPARAM: CChatMessage* pMsg)
-#define WM_CHAT_ADD_USER			(WM_APP+71)	// (WPARAM: unused, LPARAM: CChatUser* pAddUser)
-#define WM_CHAT_DELETE_USER			(WM_APP+72)	// (WPARAM: unused, LPARAM: CString* pDeleteUser). pDeleteUser == NULL - delete all users.

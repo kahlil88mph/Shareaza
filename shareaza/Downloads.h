@@ -31,6 +31,14 @@ class CMatchFile;
 class CQueryHit;
 class CShareazaURL;
 
+// Which downloads the list shows (Settings.Downloads.FilterMask)
+#define DLF_ACTIVE		0x01
+#define DLF_QUEUED		0x02
+#define DLF_SOURCES		0x04
+#define DLF_PAUSED		0x08
+
+#define DLF_ALL			(DLF_ACTIVE|DLF_QUEUED|DLF_SOURCES|DLF_PAUSED)
+
 
 class CDownloads
 {
@@ -41,6 +49,11 @@ public:
 public:
 	CDownloads();
 	virtual ~CDownloads();
+
+	// The downloads list as the interface shows it: whether the filter
+	// hides a download, and whether it has sources to expand.
+	static bool		IsFiltered(const CDownload* pDownload);
+	static BOOL		IsExpandable(CDownload* pDownload);
 
 // Attributes
 public:
